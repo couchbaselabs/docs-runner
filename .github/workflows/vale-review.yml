@@ -1,7 +1,7 @@
 name: Vale + LLM Review
 
 on:
-  workflow_dispatch
+  workflow_call:
 
 jobs:
   run-vale:
@@ -12,11 +12,17 @@ jobs:
         run: |
           sudo snap install vale
 
+      - name: fetch runner config
+        uses: actions/checkout@v4
+        with:
+          repository: couchbaselabs/docs-runner
+
       - name: fetch styles
         uses: actions/checkout@v4
         with:
           repository: couchbaselabs/docs-style-guide
           sparse-checkout: ValeStyles/
+          path: docs-style-guide
 
       - name: debug
         run: |
