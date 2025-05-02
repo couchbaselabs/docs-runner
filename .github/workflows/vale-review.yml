@@ -15,10 +15,10 @@ jobs:
       - name: fetch styles
         uses: actions/checkout@v4
         with:
-          repository: https://github.com/couchbaselabs/docs-style-guide
+          repository: couchbaselabs/docs-style-guide
           sparse-checkout: /ValeStyles/*
 
-      - name: install vale etc.
+      - name: debug
         run: |
           sudo snap install tree
           tree .
