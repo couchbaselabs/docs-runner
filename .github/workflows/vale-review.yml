@@ -10,7 +10,7 @@ jobs:
     steps:
       - name: install vale
         run: |
-          snap install vale
+          sudo snap install vale
 
       - name: fetch styles
         uses: actions/checkout@v4
@@ -20,5 +20,5 @@ jobs:
 
       - name: install vale etc.
         run: |
-          snap install tree
+          sudo snap install tree
           tree .
