@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: couchbaselabs/docs-style-guide
-          sparse-checkout: /ValeStyles/*
+          sparse-checkout: ValeStyles/
 
       - name: debug
         run: |
