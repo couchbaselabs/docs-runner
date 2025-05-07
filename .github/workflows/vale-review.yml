@@ -49,7 +49,9 @@ jobs:
 
       - name: run vale
         run: |
-          vale --config=docs-runner/.vale.ini --minAlertLevel=warning --output=JSON content-repo/${{ inputs.path }}/modules > vale.json
+          vale --config=docs-runner/.vale.ini --minAlertLevel=warning --output=JSON content-repo/$CONTENT_PATH/modules > vale.json
           cat vale.json
           echo "Vale output saved to vale.json"
           echo "OUTPUT=Vale output saved to vale.json" >> $GITHUB_ENV
+        env:
+          CONTENT_PATH: ${{ inputs.path }}
