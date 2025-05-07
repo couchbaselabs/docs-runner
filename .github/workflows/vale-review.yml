@@ -2,6 +2,10 @@ name: Vale + LLM Review
 
 on:
   workflow_call:
+    inputs:
+      path:
+        type: string
+        default: ""
 
 jobs:
   run-vale:
@@ -29,3 +33,10 @@ jobs:
         run: |
           sudo snap install tree
           tree .
+
+      - name: run vale
+        run: |
+          vale --config=docs-runner/.vale.ini --minAlertLevel=warning --output=JSON ${{ inputs.path }} > vale.json
+          cat vale.json
+          echo "Vale output saved to vale.json"
+          echo "Vale output saved to vale.json" >> $GITHUB_ENV
