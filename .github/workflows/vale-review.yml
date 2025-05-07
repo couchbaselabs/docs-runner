@@ -33,7 +33,6 @@ jobs:
         run: |
           sudo snap install tree
           tree -a .
-          ls -a docs-runner/
 
       - name: run vale
         run: |
