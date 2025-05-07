@@ -3,9 +3,16 @@ name: Vale + LLM Review
 on:
   workflow_call:
     inputs:
+      repo:
+        description: "The repository to check out"
+        required: true
+        type: string
       path:
         type: string
+        description: "The startPath pointing to the folder containing antora.yml"
+        required: false
         default: ""
+
 
 jobs:
   run-vale:
@@ -15,6 +22,11 @@ jobs:
       - name: install vale
         run: |
           sudo snap install vale
+
+      - name: checkout repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo }}
 
       - name: fetch runner config
         uses: actions/checkout@v4
