@@ -65,7 +65,7 @@ jobs:
       - name: run vale
         working-directory: ./content-repo
         run: |
-          vale --config=../docs-runner/.vale.ini --minAlertLevel=warning --output=JSON $CONTENT_PATH/modules > ../docs-runner/vale.json
+          vale --config=../docs-runner/.vale.ini --minAlertLevel=warning --output=JSON --no-exit $CONTENT_PATH/modules > ../docs-runner/vale.json
         env:
           CONTENT_PATH: ${{ inputs.path }}
 
