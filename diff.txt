@@ -1,0 +1,28 @@
+diff --git a/example/modules/ROOT/pages/intro.adoc b/example/modules/ROOT/pages/intro.adoc
+index a4e16e3..a2dd5f9 100644
+--- a/example/modules/ROOT/pages/intro.adoc
++++ b/example/modules/ROOT/pages/intro.adoc
+@@ -1,3 +1,22 @@
+ # This is an example
++:description: pass:q[Roles grant users access to one or more resources.]
++
++Note that this role does not grant the ability to back up or restore users.
+ 
+ Here is a test example.
++A second line on this example.
++
++This page is about what is so good about couchbase server. And about couchbase capella.
++
++[#table_backup_admin_role,cols="1,2,2,hrows=2"]
++|===
++5+^| Role: XDCR Admin (`replication_admin`)
++3+^|  Role: Backup Full Admin (`backup_admin`)
++|===
++
++A list:
++
++* of items
++** like this
++** and this
++** Users that are explicitly registered on Couchbase Server as _external_; as supported either by _LDAP_, _Security Assertion Markup Language (SAML)_, or _PAM_.
+\ No newline at end of file

@@ -1,0 +1,176 @@
+{
+  "example/modules/ROOT/pages/intro.adoc": [
+    {
+      "Action": {
+        "Name": "",
+        "Params": null
+      },
+      "Span": [
+        3,
+        20
+      ],
+      "Check": "Couchbase.Headings",
+      "Description": "",
+      "Link": "",
+      "Message": "'This is an example' should use title-style capitalization.",
+      "Severity": "warning",
+      "Match": "This is an example",
+      "Line": 1
+    },
+    {
+      "Action": {
+        "Name": "",
+        "Params": null
+      },
+      "Span": [
+        1,
+        9
+      ],
+      "Check": "Couchbase.NoteThat",
+      "Description": "",
+      "Link": "",
+      "Message": "Don't use 'note that.' Convert to an actual NOTE, or don't use it at all.",
+      "Severity": "error",
+      "Match": "Note that",
+      "Line": 4
+    },
+    {
+      "Action": {
+        "Name": "",
+        "Params": null
+      },
+      "Span": [
+        56,
+        57
+      ],
+      "Check": "Couchbase.DirectionalLanguage",
+      "Description": "",
+      "Link": "",
+      "Message": "Avoid directional language like 'up'.",
+      "Severity": "warning",
+      "Match": "up",
+      "Line": 4
+    },
+    {
+      "Action": {
+        "Name": "replace",
+        "Params": [
+          "what's"
+        ]
+      },
+      "Span": [
+        20,
+        26
+      ],
+      "Check": "Couchbase.Contractions",
+      "Description": "",
+      "Link": "https://docs.couchbase.com/styleguide/contractions.html",
+      "Message": "Use 'what's' instead of 'what is'.",
+      "Severity": "error",
+      "Match": "what is",
+      "Line": 9
+    },
+    {
+      "Action": {
+        "Name": "",
+        "Params": null
+      },
+      "Span": [
+        42,
+        57
+      ],
+      "Check": "Vale.Terms",
+      "Description": "",
+      "Link": "",
+      "Message": "Use 'Couchbase Server' instead of 'couchbase server'.",
+      "Severity": "error",
+      "Match": "couchbase server",
+      "Line": 9
+    },
+    {
+      "Action": {
+        "Name": "",
+        "Params": null
+      },
+      "Span": [
+        57,
+        60
+      ],
+      "Check": "Couchbase.VentilatedProse",
+      "Description": "",
+      "Link": "",
+      "Message": "Use ventilated prose. Start every sentence on a new line.",
+      "Severity": "warning",
+      "Match": "r. A",
+      "Line": 9
+    },
+    {
+      "Action": {
+        "Name": "",
+        "Params": null
+      },
+      "Span": [
+        70,
+        78
+      ],
+      "Check": "Vale.Terms",
+      "Description": "",
+      "Link": "",
+      "Message": "Use 'Couchbase' instead of 'couchbase'.",
+      "Severity": "error",
+      "Match": "couchbase",
+      "Line": 9
+    },
+    {
+      "Action": {
+        "Name": "",
+        "Params": null
+      },
+      "Span": [
+        80,
+        86
+      ],
+      "Check": "Vale.Terms",
+      "Description": "",
+      "Link": "",
+      "Message": "Use 'Capella' instead of 'capella'.",
+      "Severity": "error",
+      "Match": "capella",
+      "Line": 9
+    },
+    {
+      "Action": {
+        "Name": "",
+        "Params": null
+      },
+      "Span": [
+        74,
+        74
+      ],
+      "Check": "Couchbase.Semi-Colons",
+      "Description": "",
+      "Link": "https://docs.couchbase.com/styleguide/colons.html",
+      "Message": "Try to avoid using a semi-colon. Follow the style guide guidance.",
+      "Severity": "warning",
+      "Match": ";",
+      "Line": 22
+    },
+    {
+      "Action": {
+        "Name": "",
+        "Params": null
+      },
+      "Span": [
+        74,
+        156
+      ],
+      "Check": "Couchbase.Italics",
+      "Description": "",
+      "Link": "https://docs.couchbase.com/styleguide/italic.html",
+      "Message": "Don't use italics. Find another way to add emphasis.",
+      "Severity": "error",
+      "Match": "_; as supported either by _LDAP_, _Security Assertion Markup Language (SAML)_, or _",
+      "Line": 22
+    }
+  ]
+}
