@@ -79,6 +79,10 @@ jobs:
           CONTENT_PATH: ${{ inputs.path }}
           BASE_SHA: ${{ inputs.base_sha }}
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20 # minimum needed for Object.groupBy
+
       - name: run review.js
         working-directory: ./docs-runner
         run: |
