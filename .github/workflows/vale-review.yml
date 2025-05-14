@@ -72,6 +72,7 @@ jobs:
       - name: run git diff
         working-directory: ./content-repo
         run: |
+          git log -n 10 --pretty=oneline
           git diff $BASE_SHA $CONTENT_PATH > ../docs-runner/diff.txt
         env:
           CONTENT_PATH: ${{ inputs.path }}
