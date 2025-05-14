@@ -7,6 +7,10 @@ import Handlebars from "handlebars";
 const octokit = new Octokit({ auth: process.env.GH_TOKEN })
 const openai = new OpenAI();
 
+const head_sha = process.env.HEAD_SHA
+const pull_request_number = process.env.PULL_REQUEST_NUMBER
+const repository = process.env.REPOSITORY
+
 import parseGitDiff from 'parse-git-diff';
  
 function parseDiffFile(filePath) {
@@ -76,7 +80,8 @@ const assistant = await openai.beta.assistants.create({
     Don't truncate the line with '...', return the whole string in full.
     If you didn't find any issues, return the original line.
     If your edit makes the sentence ungrammatical or just "worse", give up and return the original line.
-    To avoid making the diffs too big, don't add or remove any spaces or newlines.
+    To avoid making the diffs too big, don't add or remove any spaces.
+    Do add newlines if the style guide rule requests 'ventilated prose'.
     Return just the line, without the backticks to format the asciidoc code.`,
   model: "gpt-4o-mini",
   tools: [{ type: "file_search" }]
@@ -91,14 +96,13 @@ const template = Handlebars.compile(
 `Automated review comment from Vale and OpenAI:
 
   ${fence}suggestion
-  {{newContent}}
+  {{{newContent}}}
   ${fence}
   
   Using these Vale rules:
   {{#each rules}}
   * {{#if this.Link}}[{{this.Check}}]({{this.Link}}){{else}}{{this.Check}}{{/if}} ({{this.Severity}}) - {{this.Message}} {{this.Description}}
-  {{/each}}
-  ${fence}`)
+  {{/each}}`)
 
 // Step 4: Send a message to the thread for each line and rules
 for (const [file, lines] of Object.entries(v2)) {
@@ -145,10 +149,10 @@ async function postComment(file, line, newContent, rules) {
 
   const payload = template({rules, newContent})
   await octokit.request(
-    'POST /repos/couchbaselabs/docs-tooling/pulls/5/comments', 
+    `POST /repos/${repository}/pulls/${pull_request_number}/comments`, 
     {
     body: payload,
-    commit_id: '50352880a4bfcd3be112bd853df60ffd927208a6',
+    commit_id: head_sha,
     path: file,
     line: parseInt(line),
     start_side: 'RIGHT',

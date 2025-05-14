@@ -3,7 +3,7 @@ name: Vale + LLM Review
 on:
   workflow_call:
     inputs:
-      repo:
+      repository:
         description: "The repository to check out"
         required: true
         type: string
@@ -12,13 +12,28 @@ on:
         description: "The startPath pointing to the folder containing antora.yml"
         required: false
         default: "."
-
+      pull_request_number:
+        type: string
+        description: "The pull request number to check out"
+        required: true
+      base_sha:
+        type: string
+        description: "The base sha to diff against"
+        required: true
+      head_sha:
+        type: string
+        description: "The head sha to comment against"
+        required: true
 
 jobs:
   run-vale:
     runs-on: ubuntu-latest
 
     steps:
+      - name: install asciidoctor
+        run: |
+          sudo apt-get install -y asciidoctor
+
       - name: install vale
         run: |
           sudo snap install vale
@@ -26,7 +41,7 @@ jobs:
       - name: checkout repo
         uses: actions/checkout@v4
         with:
-          repository: ${{ inputs.repo }}
+          repository: ${{ inputs.repository }}
           path: content-repo
 
       - name: fetch runner config
@@ -48,10 +63,27 @@ jobs:
           tree -a .
 
       - name: run vale
+        working-directory: ./content-repo
         run: |
-          vale --config=docs-runner/.vale.ini --minAlertLevel=warning --output=JSON content-repo/$CONTENT_PATH/modules > vale.json
-          cat vale.json
-          echo "Vale output saved to vale.json"
-          echo "OUTPUT=Vale output saved to vale.json" >> $GITHUB_ENV
+          vale --config=../docs-runner/.vale.ini --minAlertLevel=warning --output=JSON $CONTENT_PATH/modules > ../docs-runner/vale.json
         env:
           CONTENT_PATH: ${{ inputs.path }}
+
+      - name: run git diff
+        working-directory: ./content-repo
+        run: |
+          git diff $BASE_SHA $CONTENT_PATH > ../docs-runner/diff.txt
+        env:
+          CONTENT_PATH: ${{ inputs.path }}
+          BASE_SHA: ${{ inputs.base_sha }}
+
+      - name: run review.js
+        working-directory: ./docs-runner
+        run: |
+          npm install
+          node review.js
+        env:
+          GH_TOKEN: ${{ secrets.ACTION_TOKEN }}
+          REPOSITORY: ${{ inputs.repository }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          PULL_REQUEST_NUMBER: ${{ inputs.pull_request_number }}
