@@ -74,9 +74,6 @@ jobs:
       - name: run git diff
         working-directory: ./content-repo
         run: |
-          pwd
-          ls -la
-          git log -n 10 --pretty=oneline
           git diff $BASE_SHA $CONTENT_PATH > ../docs-runner/diff.txt
         env:
           CONTENT_PATH: ${{ inputs.path }}
@@ -92,3 +89,4 @@ jobs:
           REPOSITORY: ${{ inputs.repository }}
           HEAD_SHA: ${{ inputs.head_sha }}
           PULL_REQUEST_NUMBER: ${{ inputs.pull_request_number }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
