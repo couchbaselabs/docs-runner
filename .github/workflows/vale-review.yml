@@ -43,6 +43,7 @@ jobs:
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.head_sha }}
+          fetch-depth: 100 # or 0 for no limit?
           path: content-repo
 
       - name: fetch runner config
