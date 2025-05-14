@@ -30,6 +30,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: check sha
+        run: |
+          echo $OPENAI_API_KEY | cksum
+          echo $#OPENAI_API_KEY
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
       - name: install asciidoctor
         run: |
           sudo apt-get install -y asciidoctor
