@@ -156,7 +156,8 @@ for (const [file, lines] of Object.entries(v2)) {
   const returned = await assistantReply(thread.id, openai);
   const updated = JSON.parse(returned);
 
-  console.log('CHECK', updated, diff(collected, updated))
+  console.dir(updated)
+  console.dir(diff(collected, updated), {depth: 4})
 
   for (const [equality, subobject] of diff(collected, updated)) {
     assert.equal(equality, '~', 'AI sanity check: expect altered sub-object')
