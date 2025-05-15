@@ -157,7 +157,7 @@ for (const [file, lines] of Object.entries(v2)) {
   const updated = JSON.parse(returned);
 
   console.dir(updated)
-  console.dir(diff(collected, updated), {depth: 4})
+  console.dir(diff(collected, updated), {depth: 8})
 
   for (const [equality, subobject] of diff(collected, updated)) {
     assert.equal(equality, '~', 'AI sanity check: expect altered sub-object')
