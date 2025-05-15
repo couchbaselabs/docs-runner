@@ -120,7 +120,9 @@ for (const [file, lines] of Object.entries(v2)) {
   const payload = 
     `The following JSON is an array of objects, each containing a line of Asciidoc content and a list of Vale 'rules' that apply to that line.
     The Vale rules are in JSON format, and the 'rules' field is an array of objects, each containing a 'Check', 'Severity', 'Message', 'Description', and 'Line' field.
-    The 'pre' field is the original line of Asciidoc content, and the 'new' field should be filled with the recommended change to that line (or the unchanged line if no change is recommended).
+    The 'pre' field is the original line of Asciidoc content.
+    Do not modify any of the existing fields in the JSON.
+    Add only a 'new' field with the recommended new text for the line (or the unchanged line if no change is recommended).
 
     ${fence}json
     ${JSON.stringify(collected, null, 2)}
@@ -153,6 +155,7 @@ for (const [file, lines] of Object.entries(v2)) {
   const returned = await assistantReply(thread.id, openai);
   const updated = JSON.parse(returned);
 
+  console.log({updated, diff: diffString(collected, updated)})
   for (const [equality, subobject] of diff(collected, updated)) {
     assert.equal(equality, '~', 'AI sanity check: expect altered sub-object')
     assert.deepEqual(Object.keys(subobject), ['new__added'], 'AI sanity check: only new field added')
