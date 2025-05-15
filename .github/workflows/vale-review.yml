@@ -101,3 +101,4 @@ jobs:
           HEAD_SHA: ${{ inputs.head_sha }}
           PULL_REQUEST_NUMBER: ${{ inputs.pull_request_number }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
