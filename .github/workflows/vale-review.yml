@@ -74,7 +74,12 @@ jobs:
       - name: run vale
         working-directory: ./content-repo
         run: |
-          vale --config=../docs-runner/.vale.ini --minAlertLevel=warning --output=JSON --no-exit $CONTENT_PATH/modules > ../docs-runner/vale.json
+          CHANGED=$(git diff --name-only $BASE_SHA $CONTENT_PATH | xargs)
+          vale --config=../docs-runner/.vale.ini \
+            --minAlertLevel=warning \
+            --output=JSON \
+            --no-exit \
+            $CHANGED > ../docs-runner/vale.json
         env:
           CONTENT_PATH: ${{ inputs.path }}
 
