@@ -3,6 +3,9 @@ import OpenAI from "openai";
 import * as fs from "fs";
 import { Octokit } from "octokit"
 import Handlebars from "handlebars";
+import { diffString, diff } from 'json-diff';
+import { strict as assert } from 'node:assert';
+
 
 const octokit = new Octokit({ auth: process.env.GH_TOKEN })
 const openai = new OpenAI();
@@ -105,43 +108,64 @@ const template = Handlebars.compile(
   * {{#if this.Link}}[{{this.Check}}]({{this.Link}}){{else}}{{this.Check}}{{/if}} ({{this.Severity}}) - {{this.Message}} {{this.Description}}
   {{/each}}`)
 
-// Step 4: Send a message to the thread for each line and rules
+
+
 for (const [file, lines] of Object.entries(v2)) {
+  const collected = []
+
   for (const [line, record] of Object.entries(lines)) {
-    const Content = record.pre
+    collected.push({line, ...record})
+  }
 
-    const payload = `This line:
-      
-      ${fence}
-      ${Content}
-      ${fence}
-      
-      And these Vale rules in JSON format:
-      ${fence}
-      ${JSON.stringify(record.rules)}
-      ${fence}`
+  const payload = 
+    `The following JSON is an array of objects, each containing a line of Asciidoc content and a list of Vale 'rules' that apply to that line.
+    The Vale rules are in JSON format, and the 'rules' field is an array of objects, each containing a 'Check', 'Severity', 'Message', 'Description', and 'Line' field.
+    The 'pre' field is the original line of Asciidoc content, and the 'new' field should be filled with the recommended change to that line (or the unchanged line if no change is recommended).
 
-    await openai.beta.threads.messages.create(thread.id, {
-      role: "user",
-      content: payload
-      // attachments: [
-      //   {file_id: diffFile.id, tools: [{ type: "file_search" }] }, 
-      //   {file_id: valeFile.id, tools: [{ type: "file_search" }] }]
-    });
+    ${fence}json
+    ${JSON.stringify(collected, null, 2)}
+    ${fence}
+    
+    Return the JSON array with the 'new' field added, and no other changes.
+    Return only the JSON, without the backticks to format the JSON code.`
 
-    // Step 5: Run the assistant on that thread
-    const run = await openai.beta.threads.runs.create(thread.id, {
-      assistant_id: assistant.id,
-    });
+  // assistants file doesn't like .adoc 
+  // const contentfile = await openai.files.create(
+  //   {
+  //     file: fs.createReadStream(`../content-repo/${file}`),
+  //     purpose: "assistants",
+  //   });
 
-    await waitForRunCompletion(thread.id, run.id, openai);
-    record.new = await assistantReply(thread.id, openai);
+  await openai.beta.threads.messages.create(thread.id, {
+    role: "user",
+    content: payload,
+    // attachments: [
+    //   {file_id: contentfile.id, tools: [{ type: "file_search" }]}
+    // ]
+  });
 
+  // Step 5: Run the assistant on that thread
+  const run = await openai.beta.threads.runs.create(thread.id, {
+    assistant_id: assistant.id,
+  });
+
+  await waitForRunCompletion(thread.id, run.id, openai);
+  const returned = await assistantReply(thread.id, openai);
+  const updated = JSON.parse(returned);
+
+  for (const [equality, subobject] of diff(collected, updated)) {
+    assert.equal(equality, '~', 'AI sanity check: expect altered sub-object')
+    assert.deepEqual(Object.keys(subobject), ['new__added'], 'AI sanity check: only new field added')
+  }
+
+  for (const record of updated) {
     if (record.new !== record.pre) {
       console.log(record)
-      console.log(`Line ${line} in file ${file} changed from "${record.pre}" to "${record.new}"`);
+      console.log(`Line ${record.line} in file ${file} changed from "${record.pre}" to "${record.new}"`);
 
-      await postComment(file, line, record.new, record.rules)
+      console.log(file, record.line, record.new, record.rules)
+
+      await postComment(file, record.line, record.new, record.rules)
     }
   }
 }
