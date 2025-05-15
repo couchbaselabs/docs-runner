@@ -10,6 +10,7 @@ const openai = new OpenAI();
 const head_sha = process.env.HEAD_SHA
 const pull_request_number = process.env.PULL_REQUEST_NUMBER
 const repository = process.env.REPOSITORY
+const openai_model = process.env.OPENAI_MODEL || "gpt-4o-mini"
 
 import parseGitDiff from 'parse-git-diff';
  
@@ -69,7 +70,7 @@ const v2 = Object.fromEntries(
 
 // Step 2: Create an Assistant (once)
 const assistant = await openai.beta.assistants.create({
-  name: "Diff Reviewer",
+  name: "Couchbase Style guide assistant",
   instructions: 
     `Analyze a line of documentation in Asciidoc format and a JSON containing reports from Vale (a style-guide linter) about that line, to recommend content edits. 
     When you find a Vale recommendation, you should apply it to the line, but only if it makes sense in that context.
@@ -83,7 +84,7 @@ const assistant = await openai.beta.assistants.create({
     To avoid making the diffs too big, don't add or remove any spaces.
     Do add newlines if the style guide rule requests 'ventilated prose'.
     Return just the line, without the backticks to format the asciidoc code.`,
-  model: "gpt-4o-mini",
+  model: openai_model,
   tools: [{ type: "file_search" }]
 }); 
 
@@ -93,7 +94,7 @@ const thread = await openai.beta.threads.create();
 const fence = "```"
 
 const template = Handlebars.compile(
-`Automated review comment from Vale and OpenAI:
+`Automated review comment from Vale and OpenAI using the ${openai_model} model:
 
   ${fence}suggestion
   {{{newContent}}}
