@@ -84,6 +84,7 @@ jobs:
           cat ../docs-runner/vale.json
         env:
           CONTENT_PATH: ${{ inputs.path }}
+          BASE_SHA: ${{ inputs.base_sha }}
 
       - name: run git diff
         working-directory: ./content-repo
