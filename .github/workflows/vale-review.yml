@@ -74,8 +74,7 @@ jobs:
       - name: run vale
         working-directory: ./content-repo
         run: |
-          CHANGED=$(git diff --name-only $BASE_SHA 
-          $CONTENT_PATH | xargs)
+          CHANGED=$(git diff --name-only $BASE_SHA $CONTENT_PATH | xargs)
           echo $CHANGED
           vale --config=../docs-runner/.vale.ini \
             --minAlertLevel=warning \
