@@ -166,6 +166,33 @@ for (const [file, lines] of Object.entries(v2)) {
   //   assert.deepEqual(Object.keys(subobject), ['new__added'], 'AI sanity check: only new field added')
   // }
 
+  // Fetch all comments on the pull request
+  const comments = await octokit.request(
+    `GET /repos/${repository}/pulls/${pull_request_number}/comments`, 
+    {
+      per_page: 100, // see https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api?apiVersion=2022-11-28 for pagination TODO 
+      headers: {
+        'X-GitHub-Api-Version': '2022-11-28'
+      }
+    }
+  );
+
+  // Filter comments made by 'tech-comm-team-couchbase'
+  const techCommComments = comments.data.filter(comment => comment.user.login === 'tech-comm-team-couchbase');
+
+  // Delete each comment
+  // (we might want to https://docs.github.com/en/graphql/reference/mutations#resolvereviewthread instead, but that's GraphQL only, so for another day.)
+  for (const comment of techCommComments) {
+    await octokit.request(
+      `DELETE /repos/${repository}/pulls/comments/${comment.id}`, 
+      {
+        headers: {
+          'X-GitHub-Api-Version': '2022-11-28'
+        }
+      }
+    );
+  }
+
   for (const record of updated) {
     if (record.new !== record.pre) {
       console.log(record)
