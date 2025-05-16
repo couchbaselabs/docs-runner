@@ -166,31 +166,59 @@ for (const [file, lines] of Object.entries(v2)) {
   //   assert.deepEqual(Object.keys(subobject), ['new__added'], 'AI sanity check: only new field added')
   // }
 
-  // Fetch all comments on the pull request
-  const comments = await octokit.request(
-    `GET /repos/${repository}/pulls/${pull_request_number}/comments`, 
-    {
-      per_page: 100, // see https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api?apiVersion=2022-11-28 for pagination TODO 
-      headers: {
-        'X-GitHub-Api-Version': '2022-11-28'
-      }
-    }
-  );
-
-  // Filter comments made by 'tech-comm-team-couchbase'
-  const techCommComments = comments.data.filter(comment => comment.user.login === 'tech-comm-team-couchbase');
-
-  // Delete each comment
-  // (we might want to https://docs.github.com/en/graphql/reference/mutations#resolvereviewthread instead, but that's GraphQL only, so for another day.)
-  for (const comment of techCommComments) {
-    await octokit.request(
-      `DELETE /repos/${repository}/pulls/comments/${comment.id}`, 
-      {
-        headers: {
-          'X-GitHub-Api-Version': '2022-11-28'
+  // Fetch all review threads on the pull request
+  const reviewThreadsQuery = `
+    query ($repository: String!, $owner: String!, $pullRequestNumber: Int!) {
+      repository(name: $repository, owner: $owner) {
+        pullRequest(number: $pullRequestNumber) {
+          reviewThreads(first: 100) {
+            nodes {
+              id
+              isResolved
+              comments(first: 1) {
+                nodes {
+                  author {
+                    login
+                  }
+                }
+              }
+            }
+          }
         }
       }
-    );
+    }
+  `;
+
+  const variables = {
+    repository: repository.split('/')[1],
+    owner: repository.split('/')[0],
+    pullRequestNumber: parseInt(pull_request_number),
+  };
+
+  const reviewThreadsResponse = await octokit.graphql(reviewThreadsQuery, variables);
+
+  const reviewThreads = reviewThreadsResponse.repository.pullRequest.reviewThreads.nodes;
+
+  // Filter threads with comments made by 'tech-comm-team-couchbase' and not already resolved
+  const unresolvedThreads = reviewThreads.filter(
+    (thread) =>
+      !thread.isResolved &&
+      thread.comments.nodes.some((comment) => comment.author.login === 'tech-comm-team-couchbase')
+  );
+
+  // Resolve each thread
+  for (const thread of unresolvedThreads) {
+    const resolveThreadMutation = `
+      mutation ($threadId: ID!) {
+        resolveReviewThread(input: {threadId: $threadId}) {
+          thread {
+            isResolved
+          }
+        }
+      }
+    `;
+
+    await octokit.graphql(resolveThreadMutation, { threadId: thread.id });
   }
 
   for (const record of updated) {
