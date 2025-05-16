@@ -182,7 +182,7 @@ for (const [file, lines] of Object.entries(v2)) {
 
   // Delete each comment
   // (we might want to https://docs.github.com/en/graphql/reference/mutations#resolvereviewthread instead, but that's GraphQL only, so for another day.)
-  for (const comment of techCommComments) {
+  await Promise.all(techCommComments.map(async (comment) => {
     await octokit.request(
       `DELETE /repos/${repository}/pulls/comments/${comment.id}`, 
       {
@@ -191,18 +191,18 @@ for (const [file, lines] of Object.entries(v2)) {
         }
       }
     );
-  }
+  }));
 
-  for (const record of updated) {
+  await Promise.all(updated.map(async (record) => {
     if (record.new !== record.pre) {
-      console.log(record)
+      console.log(record);
       console.log(`Line ${record.line} in file ${file} changed from "${record.pre}" to "${record.new}"`);
 
-      console.log(file, record.line, record.new, record.rules)
+      console.log(file, record.line, record.new, record.rules);
 
-      await postComment(file, record.line, record.new, record.rules)
+      await postComment(file, record.line, record.new, record.rules);
     }
-  }
+  }));
 }
 
 async function postComment(file, line, newContent, rules) {
