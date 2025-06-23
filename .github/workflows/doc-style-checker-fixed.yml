@@ -37,7 +37,7 @@ on:
       ACTION_TOKEN:
         description: "GitHub token for posting comments"
         required: true
-  workflow_dispatch:
+  workflow_dispatch:  # Add this for manual testing
     inputs:
       test_mode:
         description: "Run in test mode"
@@ -73,25 +73,55 @@ jobs:
         working-directory: ./content-repo
         run: |
           mkdir -p /tmp/doc-processing
-          echo "Processing files using Base64 encoding..."
+          echo "Processing files..."
           
           echo '${{ steps.changed-files.outputs.files }}' | while IFS= read -r file; do
             if [[ -n "$file" && -f "$file" ]]; then
               echo "Preparing: $file"
               SAFE_NAME=$(echo "$(basename "$file")" | sed 's/[^a-zA-Z0-9._-]/_/g')
               
-              # Base64 encode the content to avoid JSON escaping issues
-              CONTENT_B64=$(base64 -w 0 "$file")
+              # Use Node.js directly to create JSON properly
+              node -e "
+                const fs = require('fs');
+                const filename = '$file';
+                const outputPath = '/tmp/doc-processing/${SAFE_NAME}.meta';
+                
+                try {
+                  console.log('Reading file:', filename);
+                  const content = fs.readFileSync(filename, 'utf8');
+                  console.log('File read successfully, length:', content.length);
+                  
+                  const data = {
+                    filename: filename,
+                    content: content
+                  };
+                  
+                  console.log('Creating JSON...');
+                  const jsonString = JSON.stringify(data, null, 2);
+                  console.log('JSON created, writing to:', outputPath);
+                  
+                  fs.writeFileSync(outputPath, jsonString);
+                  console.log('✓ Successfully processed', filename);
+                  
+                } catch (error) {
+                  console.error('✗ Error processing', filename, ':', error.message);
+                  process.exit(1);
+                }
+              "
               
-              # Create simple JSON with base64 content
-              cat > "/tmp/doc-processing/${SAFE_NAME}.meta" << EOF
-          {
-            "filename": "$file",
-            "contentBase64": "$CONTENT_B64"
-          }
-          EOF
-              
-              echo "✓ Prepared $file ($(wc -c < "$file") bytes)"
+              # Verify the JSON is valid
+              echo "Verifying JSON for $file:"
+              node -e "
+                try {
+                  const data = JSON.parse(require('fs').readFileSync('/tmp/doc-processing/${SAFE_NAME}.meta', 'utf8'));
+                  console.log('✓ Valid JSON created for $file');
+                  console.log('  - Filename:', data.filename);
+                  console.log('  - Content length:', data.content.length);
+                } catch (e) {
+                  console.error('✗ Invalid JSON for $file:', e.message);
+                  process.exit(1);
+                }
+              "
             fi
           done
 
@@ -110,14 +140,20 @@ jobs:
           const https = require('https');
           
           async function checkDocStyle(content, filename) {
+            console.log(`📤 Sending request for: ${filename}`);
+            console.log(`📝 Content preview: ${content.substring(0, 100)}...`);
+            console.log(`📏 Content length: ${content.length}`);
+            
             const data = JSON.stringify({
               content: content,
               filename: filename
             });
             
+            console.log(`📦 Request data size: ${data.length} bytes`);
+            
             const options = {
               hostname: 'doc-style-checker.vercel.app',
-              path: '/api/check-style',
+              path: '/api/test-check',
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -134,12 +170,17 @@ jobs:
                 });
                 res.on('end', () => {
                   try {
+                    console.log(`📨 Response status: ${res.statusCode}`);
+                    console.log(`📨 Response headers:`, JSON.stringify(res.headers));
+                    console.log(`📨 Response body preview: ${responseData.substring(0, 500)}...`);
+                    
                     if (res.statusCode !== 200) {
                       console.error(`❌ Non-200 status code: ${res.statusCode}`);
                       console.error(`❌ Full response: ${responseData}`);
                       throw new Error(`HTTP ${res.statusCode}: ${responseData}`);
                     }
                     const result = JSON.parse(responseData);
+                    console.log(`✅ Successfully parsed response for ${filename}`);
                     resolve(result);
                   } catch (e) {
                     console.error('❌ Response parsing error:', e.message);
@@ -160,6 +201,7 @@ jobs:
                 reject(new Error('Request timeout after 45 seconds'));
               });
               
+              console.log(`🚀 Sending request to API...`);
               req.write(data);
               req.end();
             });
@@ -175,29 +217,30 @@ jobs:
             }
             
             const metaFiles = fs.readdirSync(processingDir).filter(f => f.endsWith('.meta'));
-            console.log(`Processing ${metaFiles.length} file(s)`);
+            console.log(`Found ${metaFiles.length} file(s) to process`);
             
             for (const metaFile of metaFiles) {
               const metaPath = path.join(processingDir, metaFile);
               
               try {
                 const metadata = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+                console.log(`🔍 Processing: ${metadata.filename}`);
+                console.log(`📄 Content preview: "${metadata.content.substring(0, 150)}..."`);
+                console.log(`📏 Content length: ${metadata.content.length} characters`);
+                console.log(`🔤 Content type: ${typeof metadata.content}`);
                 
-                // Decode base64 content
-                const content = Buffer.from(metadata.contentBase64, 'base64').toString('utf8');
-                
-                const result = await checkDocStyle(content, metadata.filename);
+                const result = await checkDocStyle(metadata.content, metadata.filename);
                 results[metadata.filename] = result;
                 
                 const issueCount = result.issues ? result.issues.length : 0;
-                console.log(`✓ ${metadata.filename}: ${issueCount} issue(s) found`);
+                console.log(`✅ ${metadata.filename}: ${issueCount} issue(s) found`);
                 
                 await new Promise(resolve => setTimeout(resolve, 3000));
                 
               } catch (error) {
                 console.error(`❌ Error processing ${metaFile}:`, error.message);
                 console.error(`❌ Error stack:`, error.stack);
-                const filename = metaFile.replace('.meta', '').replace(/_/g, '.');
+                const filename = metaFile.replace('.meta', '');
                 results[filename] = { error: error.message };
               }
             }
@@ -208,7 +251,7 @@ jobs:
           processAllFiles()
             .then(results => {
               fs.writeFileSync('/tmp/style-check-results.json', JSON.stringify(results, null, 2));
-              console.log('✓ Style check completed');
+              console.log('📊 Style check completed');
             })
             .catch(error => {
               console.error('❌ Style check failed:', error);
@@ -231,8 +274,11 @@ jobs:
               const resultsData = fs.readFileSync('/tmp/style-check-results.json', 'utf8');
               results = JSON.parse(resultsData);
             } catch (error) {
+              console.log('No results to process');
               return;
             }
+            
+            console.log(`Processing results for ${Object.keys(results).length} files`);
             
             let comment = '## 📝 Doc Style Checker Results\n\n';
             let hasIssues = false;
@@ -249,16 +295,13 @@ jobs:
                 continue;
               }
               
-              // Process the nested structure from your API correctly
+              // Process the nested structure from your API
               let fileIssues = [];
-              let issueCounter = 1;
-              
               result.issues.forEach(categoryGroup => {
                 if (categoryGroup.issues && Array.isArray(categoryGroup.issues)) {
                   categoryGroup.issues.forEach(issue => {
                     fileIssues.push({
                       category: categoryGroup.category,
-                      issueNumber: issueCounter++,
                       ...issue
                     });
                   });
@@ -272,7 +315,7 @@ jobs:
               
               hasIssues = true;
               totalIssues += fileIssues.length;
-              comment += `### 📋 ${filename}\n\n`;
+              comment += `### 📋 ${filename}\n**${fileIssues.length} issue${fileIssues.length > 1 ? 's' : ''} found**\n\n`;
               
               // Group by category
               const byCategory = {};
@@ -283,18 +326,17 @@ jobs:
               });
               
               for (const [category, issues] of Object.entries(byCategory)) {
-                comment += `## ${category}\n\n`;
+                comment += `#### ${category}\n\n`;
                 
-                issues.forEach((issue) => {
-                  comment += `▼ **Issue ${issue.issueNumber}**\n\n`;
+                issues.forEach((issue, i) => {
+                  comment += `<details>\n<summary><strong>Issue ${i + 1}</strong></summary>\n\n`;
                   
                   if (issue.problem) {
                     comment += `**Problem:** ${issue.problem}\n\n`;
                   }
                   
                   if (issue.problematicText) {
-                    comment += `**Text:**\n\n`;
-                    comment += `\`\`\`\n${issue.problematicText}\n\`\`\`\n\n`;
+                    comment += `**Text:**\n\`\`\`\n${issue.problematicText}\n\`\`\`\n\n`;
                   }
                   
                   if (issue.location) {
@@ -309,19 +351,19 @@ jobs:
                     comment += `**Guideline:** ${issue.guideline}\n\n`;
                   }
                   
-                  comment += `---\n\n`;
+                  comment += `</details>\n\n`;
                 });
               }
             }
             
             if (hasIssues) {
-              const summary = `🔍 **Found ${totalIssues} style issue${totalIssues > 1 ? 's' : ''} in ${Object.keys(results).length} file${Object.keys(results).length > 1 ? 's' : ''}**\n\n`;
+              const summary = `🔍 **Summary:** ${totalIssues} issue${totalIssues > 1 ? 's' : ''} found across ${Object.keys(results).length} file${Object.keys(results).length > 1 ? 's' : ''}\n\n`;
               comment = comment.replace('## 📝 Doc Style Checker Results\n\n', `## 📝 Doc Style Checker Results\n\n${summary}`);
             } else if (Object.keys(results).length > 0) {
               comment += '🎉 **All documentation looks great!** No style issues found.\n\n';
             }
             
-            comment += '---\n\n*Automated by [Doc Style Checker](https://doc-style-checker.vercel.app/) using Couchbase Documentation Style Guide*';
+            comment += '---\n*Automated by [Doc Style Checker](https://doc-style-checker.vercel.app/) • Couchbase Documentation Style Guide*';
             
             try {
               const [owner, repo] = '${{ inputs.repository }}'.split('/');
@@ -331,6 +373,7 @@ jobs:
                 repo: repo,
                 body: comment
               });
+              console.log('✅ Comment posted successfully');
             } catch (error) {
               console.error('❌ Failed to post comment:', error);
               throw error;
