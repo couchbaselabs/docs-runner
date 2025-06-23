@@ -79,14 +79,37 @@ jobs:
             if [[ -n "$file" && -f "$file" ]]; then
               echo "Preparing: $file"
               SAFE_NAME=$(echo "$(basename "$file")" | sed 's/[^a-zA-Z0-9._-]/_/g')
-              CONTENT=$(cat "$file" | jq -Rs .)
               
-              cat > "/tmp/doc-processing/${SAFE_NAME}.meta" << EOF
+              # Read file content and create JSON properly
+              cat > "/tmp/doc-processing/${SAFE_NAME}.meta" << 'METAEOF'
           {
-            "filename": "$file",
-            "content": $CONTENT
+            "filename": "FILE_PLACEHOLDER",
+            "content": "CONTENT_PLACEHOLDER"
           }
-          EOF
+          METAEOF
+              
+              # Replace placeholders with actual values using proper escaping
+              sed -i "s|FILE_PLACEHOLDER|$file|g" "/tmp/doc-processing/${SAFE_NAME}.meta"
+              
+              # Use Python to properly escape JSON content
+              python3 -c "
+import json
+import sys
+
+with open('$file', 'r', encoding='utf-8') as f:
+    content = f.read()
+
+# Read the template
+with open('/tmp/doc-processing/${SAFE_NAME}.meta', 'r') as f:
+    template = f.read()
+
+# Replace content placeholder with properly escaped JSON
+escaped_content = json.dumps(content)
+final_json = template.replace('\"CONTENT_PLACEHOLDER\"', escaped_content)
+
+with open('/tmp/doc-processing/${SAFE_NAME}.meta', 'w') as f:
+    f.write(final_json)
+"
               echo "✓ Prepared $file"
             fi
           done
