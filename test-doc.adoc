@@ -1,0 +1,110 @@
+Data Modelling
+
+couchbase Sync Gateway’s data model; for secure cloud-to-edge synchronization of enterprise data.
+
+introduction
+
+This page includes guidance and constraints relating to the design of data buckets and documents that you want to replicate using Sync Gateway. They do not necessarily align with constraints on the local storage and use of such documents.
+
+property naming
+
+You can use an underscore prefix (_, ASCII &#095) for property naming, but your name cannot match any of the Document system properties reserved by Sync Gateway:
+
+_sync
+
+_id
+
+_rev
+
+_deleted
+
+_attachments
+
+_revisions
+
+_exp
+
+_purged
+
+_removed
+
+Any document that matches the reserved property names listed will be rejected by Sync Gateway — see Example 1 for the error details.
+
+Example 1. Property prefix error message
+text
+Copy
+"{"error":"Bad Request","reason":"user defined top level properties beginning with '_' are not allowed in document body"}"
+Where it applies
+This rule applies to writes performed through:
+
+Couchbase Lite SDKs
+
+Sync Gateway REST APIs
+
+Couchbase Server SDKs when shared bucket access is enabled.
+
+When you might encounter the error
+You may encounter the error in the following deployment situations:
+
+In Mobile-to-Web Data Sync with Node.js Server SDK and Ottoman.js (the Node.js ODM for Couchbase), where the rule conflicts with the _type property that is automatically added by Ottoman.js.
+
+A suggested workaround in this scenario is to fork the Ottoman.js library, perform a search-replace for the _type property and replace it without a leading underscore.
+
+For versions 2.x of Sync Gateway, you can encounter the following error:
+
+In Mobile-to-Web Data Sync with Field-level Encryption enabled, because the rule conflicts with the default field encryption format.
+
+How to avoid the error
+You should change any top-level user properties that have a key with a leading underscore , by either:
+
+Renaming them to remove the underscore, or,
+
+Wrapping them inside another object with a key that doesn’t have a leading underscore.
+
+Document Structure
+Couchbase’s unit of data is a document, this is the NOSQL equivalent of a row or record.
+
+Documents are stored as a key-value pair, which comprises a unique and immutable key, the Id, and a value representing the users' data (a JSON-object or binary blob).
+
+Key
+The document key, the Id, is:
+
+A UTF-8 string with no spaces, although it may contain special characters, such as (, %, /, ", and _
+
+No longer than 250 bytes
+
+Unique within the bucket
+
+Automatically generated (as a UUID) or be set by the user or application when saved
+
+Immutable; that is, once saved the Id cannot be changed.
+
+Value
+The document value is either:
+
+A JSON value, termed a Document.
+
+This JSON object is a collection of key/value pairs. The values may be numbers, strings, arrays, or even nested objects. As a result, documents can represent complex data structures in a readily parsable and self-organizing manner.
+
+a binary object (also known as a blob or attachment)
+
+These attachments provide a means to store large media files or any other non-textual data. Couchbase Lite supports attachments of unlimited size, although the Sync Gateway imposes a 20MB limit for attachments synced to it.
+
+Document Attributes
+Each Document has the following attributes:
+
+A document ID
+
+A current revision ID (which changes when the document is updated)
+
+A history of past revision IDs (usually linear, but will form a branching tree if the document has or has had conflicts)
+
+A body in the form of a JSON object (a set of key/value pairs)
+
+Zero or more named binary attachments
+
+Document Change History
+Couchbase Lite tracks the change history of every document as a series of revisions, like version control systems such as Git or Subversion. Its main purpose is to enable the replicator to determine which data to sync and any conflicts arising.
+
+Each document change is assigned a unique revision ID. The IDs of past revisions are available. The content of past revisions may be available if the revision was created locally and the database has not yet been compacted.
+
