@@ -37,12 +37,7 @@ on:
       ACTION_TOKEN:
         description: "GitHub token for posting comments"
         required: true
-  workflow_dispatch:
-    inputs:
-      test_mode:
-        description: "Run in test mode"
-        default: true
-        type: boolean
+
 
 jobs:
   doc-style-check:
@@ -170,7 +165,6 @@ jobs:
             const results = {};
             
             if (!fs.existsSync(processingDir)) {
-              console.log('No processing directory found');
               return results;
             }
             
