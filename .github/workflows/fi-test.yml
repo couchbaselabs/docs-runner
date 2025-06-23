@@ -1,0 +1,16 @@
+name: Test workflow for FI
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: test
+        run: |
+          echo worlld
+
+
