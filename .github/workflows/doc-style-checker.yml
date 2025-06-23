@@ -75,41 +75,55 @@ jobs:
           mkdir -p /tmp/doc-processing
           echo "Processing files..."
           
+          # Create Python script for processing content
+          python3 -c "
+          import os
+          script_content = '''import json
+          import sys
+          
+          if len(sys.argv) != 3:
+              print(\"Usage: python process_content.py <file_path> <meta_path>\")
+              sys.exit(1)
+          
+          file_path = sys.argv[1]
+          meta_path = sys.argv[2]
+          
+          try:
+              with open(file_path, \"r\", encoding=\"utf-8\") as f:
+                  content = f.read()
+              
+              with open(meta_path, \"r\") as f:
+                  template = f.read()
+              
+              escaped_content = json.dumps(content)
+              final_json = template.replace('\"CONTENT_PLACEHOLDER\"', escaped_content)
+              
+              with open(meta_path, \"w\") as f:
+                  f.write(final_json)
+              
+              print(f\"Successfully processed {file_path}\")
+          except Exception as e:
+              print(f\"Error processing {file_path}: {e}\")
+              sys.exit(1)
+          '''
+          
+          with open('/tmp/process_content.py', 'w') as f:
+              f.write(script_content)
+          "
+          
           echo '${{ steps.changed-files.outputs.files }}' | while IFS= read -r file; do
             if [[ -n "$file" && -f "$file" ]]; then
               echo "Preparing: $file"
               SAFE_NAME=$(echo "$(basename "$file")" | sed 's/[^a-zA-Z0-9._-]/_/g')
               
-              # Read file content and create JSON properly
-              cat > "/tmp/doc-processing/${SAFE_NAME}.meta" << 'METAEOF'
-          {
-            "filename": "FILE_PLACEHOLDER",
-            "content": "CONTENT_PLACEHOLDER"
-          }
-          METAEOF
+              # Create JSON template
+              echo '{"filename": "FILE_PLACEHOLDER", "content": "CONTENT_PLACEHOLDER"}' > "/tmp/doc-processing/${SAFE_NAME}.meta"
               
-              # Replace placeholders with actual values using proper escaping
+              # Replace filename placeholder
               sed -i "s|FILE_PLACEHOLDER|$file|g" "/tmp/doc-processing/${SAFE_NAME}.meta"
               
-              # Use Python to properly escape JSON content
-              python3 -c "
-              import json
-              import sys
-              
-              with open('$file', 'r', encoding='utf-8') as f:
-                  content = f.read()
-              
-              # Read the template
-              with open('/tmp/doc-processing/${SAFE_NAME}.meta', 'r') as f:
-                  template = f.read()
-              
-              # Replace content placeholder with properly escaped JSON
-              escaped_content = json.dumps(content)
-              final_json = template.replace('\"CONTENT_PLACEHOLDER\"', escaped_content)
-              
-              with open('/tmp/doc-processing/${SAFE_NAME}.meta', 'w') as f:
-                  f.write(final_json)
-              "
+              # Execute the Python script to handle content escaping
+              python3 /tmp/process_content.py "$file" "/tmp/doc-processing/${SAFE_NAME}.meta"
               echo "✓ Prepared $file"
             fi
           done
