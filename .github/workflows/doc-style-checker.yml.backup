@@ -41,7 +41,7 @@ on:
     inputs:
       test_mode:
         description: "Run in test mode"
-        default: true
+        default: "true"
         type: boolean
 
 jobs:
@@ -73,25 +73,59 @@ jobs:
         working-directory: ./content-repo
         run: |
           mkdir -p /tmp/doc-processing
-          echo "Processing files using Base64 encoding..."
+          echo "Processing files..."
           
           echo '${{ steps.changed-files.outputs.files }}' | while IFS= read -r file; do
             if [[ -n "$file" && -f "$file" ]]; then
               echo "Preparing: $file"
               SAFE_NAME=$(echo "$(basename "$file")" | sed 's/[^a-zA-Z0-9._-]/_/g')
               
-              # Base64 encode the content to avoid JSON escaping issues
-              CONTENT_B64=$(base64 -w 0 "$file")
+              # Create a Node.js script to handle this properly
+              cat > "/tmp/process_${SAFE_NAME}.js" << 'NODESCRIPT'
+const fs = require('fs');
+
+const filename = process.argv[2];
+const outputPath = process.argv[3];
+
+try {
+  console.log('Reading file:', filename);
+  const content = fs.readFileSync(filename, 'utf8');
+  console.log('File read successfully, length:', content.length);
+  
+  const data = {
+    filename: filename,
+    content: content
+  };
+  
+  console.log('Creating JSON...');
+  const jsonString = JSON.stringify(data, null, 2);
+  console.log('JSON created, writing to:', outputPath);
+  
+  fs.writeFileSync(outputPath, jsonString);
+  console.log('✓ Successfully processed', filename);
+  
+} catch (error) {
+  console.error('✗ Error processing', filename, ':', error.message);
+  process.exit(1);
+}
+NODESCRIPT
               
-              # Create simple JSON with base64 content
-              cat > "/tmp/doc-processing/${SAFE_NAME}.meta" << EOF
-          {
-            "filename": "$file",
-            "contentBase64": "$CONTENT_B64"
-          }
-          EOF
+         
+              node "/tmp/process_${SAFE_NAME}.js" "$file" "/tmp/doc-processing/${SAFE_NAME}.meta"
               
-              echo "✓ Prepared $file ($(wc -c < "$file") bytes)"
+          
+              echo "Verifying JSON for $file:"
+              node -e "
+                try {
+                  const data = JSON.parse(require('fs').readFileSync('/tmp/doc-processing/${SAFE_NAME}.meta', 'utf8'));
+                  console.log('✓ Valid JSON created for $file');
+                  console.log('  - Filename:', data.filename);
+                  console.log('  - Content length:', data.content.length);
+                } catch (e) {
+                  console.error('✗ Invalid JSON for $file:', e.message);
+                  process.exit(1);
+                }
+              "
             fi
           done
 
@@ -127,7 +161,7 @@ jobs:
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'Content-Length': Buffer.byteLength(data, 'utf8'),
+                'Content-Length': data.length,
                 'User-Agent': 'GitHub-Actions-Doc-Checker/1.0'
               }
             };
@@ -141,6 +175,8 @@ jobs:
                 res.on('end', () => {
                   try {
                     console.log(`📨 Response status: ${res.statusCode}`);
+                    console.log(`📨 Response headers:`, JSON.stringify(res.headers));
+                    console.log(`📨 Response body preview: ${responseData.substring(0, 500)}...`);
                     
                     if (res.statusCode !== 200) {
                       console.error(`❌ Non-200 status code: ${res.statusCode}`);
@@ -193,13 +229,11 @@ jobs:
               try {
                 const metadata = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
                 console.log(`🔍 Processing: ${metadata.filename}`);
+                console.log(`📄 Content preview: "${metadata.content.substring(0, 150)}..."`);
+                console.log(`📏 Content length: ${metadata.content.length} characters`);
+                console.log(`🔤 Content type: ${typeof metadata.content}`);
                 
-                // Decode base64 content
-                const content = Buffer.from(metadata.contentBase64, 'base64').toString('utf8');
-                console.log(`📄 Content preview: "${content.substring(0, 150)}..."`);
-                console.log(`📏 Content length: ${content.length} characters`);
-                
-                const result = await checkDocStyle(content, metadata.filename);
+                const result = await checkDocStyle(metadata.content, metadata.filename);
                 results[metadata.filename] = result;
                 
                 const issueCount = result.issues ? result.issues.length : 0;
@@ -210,7 +244,7 @@ jobs:
               } catch (error) {
                 console.error(`❌ Error processing ${metaFile}:`, error.message);
                 console.error(`❌ Error stack:`, error.stack);
-                const filename = metaFile.replace('.meta', '').replace(/_/g, '.');
+                const filename = metaFile.replace('.meta', '');
                 results[filename] = { error: error.message };
               }
             }
