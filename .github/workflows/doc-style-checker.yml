@@ -27,17 +27,17 @@ on:
     secrets:
       GEMINI_API_KEY:
         description: "Google Gemini API key"
-        required: true  
+        required: true
       GEMINI_API_KEY_2:
-        description: "Optional second Google Gemini API key"
-        required: false
+        description: "Google Gemini API key"
+        required: true
       GEMINI_API_KEY_3:
-        description: "Optional third Google Gemini API key"
-        required: false
+        description: "Google Gemini API key"
+        required: true
       ACTION_TOKEN:
         description: "GitHub token for posting comments"
         required: true
-  workflow_dispatch:  # Add this for manual testing
+  workflow_dispatch:
     inputs:
       test_mode:
         description: "Run in test mode"
@@ -80,30 +80,24 @@ jobs:
               echo "Preparing: $file"
               SAFE_NAME=$(echo "$(basename "$file")" | sed 's/[^a-zA-Z0-9._-]/_/g')
               
-              # Create a simple JSON file with proper escaping
-              python3 -c "
-          import json
-          import sys
-          
-          filename = '$file'
-          
-          try:
-              with open(filename, 'r', encoding='utf-8') as f:
-                  content = f.read()
-              
-              data = {
-                  'filename': filename,
-                  'content': content
-              }
-              
-              with open('/tmp/doc-processing/${SAFE_NAME}.meta', 'w') as f:
-                  json.dump(data, f)
-              
-              print(f'✓ Prepared {filename}')
-          except Exception as e:
-              print(f'✗ Error processing {filename}: {e}')
-              sys.exit(1)
-          "
+              # Use Node.js to properly create JSON
+              node -e "
+                const fs = require('fs');
+                const path = require('path');
+                
+                const filename = '$file';
+                const content = fs.readFileSync(filename, 'utf8');
+                
+                const data = {
+                  filename: filename,
+                  content: content
+                };
+                
+                const metaPath = '/tmp/doc-processing/${SAFE_NAME}.meta';
+                fs.writeFileSync(metaPath, JSON.stringify(data, null, 2));
+                
+                console.log('✓ Prepared ' + filename + ' (' + content.length + ' chars)');
+              "
             fi
           done
 
