@@ -28,15 +28,15 @@ on:
       GEMINI_API_KEY:
         description: "Google Gemini API key"
         required: true
-      GEMINI_API_KEY_2:
-        description: "Google Gemini API key"
-        required: true
-      GEMINI_API_KEY_3:
-        description: "Google Gemini API key"
-        required: true
       ACTION_TOKEN:
         description: "GitHub token for posting comments"
         required: true
+  workflow_dispatch:  # Add this for manual testing
+    inputs:
+      test_mode:
+        description: "Run in test mode"
+        default: "true"
+        type: boolean
 
 jobs:
   doc-style-check:
@@ -124,6 +124,9 @@ jobs:
                 });
                 res.on('end', () => {
                   try {
+                    console.log(`Response status: ${res.statusCode}`);
+                    console.log(`Response body: ${responseData}`);
+                    
                     if (res.statusCode !== 200) {
                       throw new Error(`HTTP ${res.statusCode}: ${responseData}`);
                     }
@@ -131,6 +134,7 @@ jobs:
                     resolve(result);
                   } catch (e) {
                     console.error('Response parsing error:', e.message);
+                    console.error('Raw response:', responseData);
                     reject(e);
                   }
                 });
@@ -234,12 +238,31 @@ jobs:
                 continue;
               }
               
-              hasIssues = true;
-              totalIssues += result.issues.length;
-              comment += `### 📋 ${filename}\n**${result.issues.length} issue${result.issues.length > 1 ? 's' : ''} found**\n\n`;
+              // Process the nested structure from your API
+              let fileIssues = [];
+              result.issues.forEach(categoryGroup => {
+                if (categoryGroup.issues && Array.isArray(categoryGroup.issues)) {
+                  categoryGroup.issues.forEach(issue => {
+                    fileIssues.push({
+                      category: categoryGroup.category,
+                      ...issue
+                    });
+                  });
+                }
+              });
               
+              if (fileIssues.length === 0) {
+                comment += `### ✅ ${filename}\nNo style issues found!\n\n`;
+                continue;
+              }
+              
+              hasIssues = true;
+              totalIssues += fileIssues.length;
+              comment += `### 📋 ${filename}\n**${fileIssues.length} issue${fileIssues.length > 1 ? 's' : ''} found**\n\n`;
+              
+              // Group by category
               const byCategory = {};
-              result.issues.forEach(issue => {
+              fileIssues.forEach(issue => {
                 const cat = issue.category || 'General';
                 if (!byCategory[cat]) byCategory[cat] = [];
                 byCategory[cat].push(issue);
