@@ -123,7 +123,7 @@ jobs:
             
             const options = {
               hostname: 'doc-style-checker.vercel.app',
-              path: '/api/test-check',
+              path: '/api/check-style',
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
