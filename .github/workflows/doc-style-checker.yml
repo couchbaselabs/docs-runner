@@ -27,8 +27,8 @@ on:
     secrets:
       GEMINI_API_KEY:
         description: "Google Gemini API key"
-        required: true
-      GEMINI_API_KEY_2: 
+        required: true  
+      GEMINI_API_KEY_2:
         description: "Optional second Google Gemini API key"
         required: false
       GEMINI_API_KEY_3:
