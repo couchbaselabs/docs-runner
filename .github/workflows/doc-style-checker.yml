@@ -41,7 +41,7 @@ on:
     inputs:
       test_mode:
         description: "Run in test mode"
-        default: "true"
+        default: true
         type: boolean
 
 jobs:
@@ -93,23 +93,23 @@ jobs:
               
               # Use Python to properly escape JSON content
               python3 -c "
-import json
-import sys
-
-with open('$file', 'r', encoding='utf-8') as f:
-    content = f.read()
-
-# Read the template
-with open('/tmp/doc-processing/${SAFE_NAME}.meta', 'r') as f:
-    template = f.read()
-
-# Replace content placeholder with properly escaped JSON
-escaped_content = json.dumps(content)
-final_json = template.replace('\"CONTENT_PLACEHOLDER\"', escaped_content)
-
-with open('/tmp/doc-processing/${SAFE_NAME}.meta', 'w') as f:
-    f.write(final_json)
-"
+              import json
+              import sys
+              
+              with open('$file', 'r', encoding='utf-8') as f:
+                  content = f.read()
+              
+              # Read the template
+              with open('/tmp/doc-processing/${SAFE_NAME}.meta', 'r') as f:
+                  template = f.read()
+              
+              # Replace content placeholder with properly escaped JSON
+              escaped_content = json.dumps(content)
+              final_json = template.replace('\"CONTENT_PLACEHOLDER\"', escaped_content)
+              
+              with open('/tmp/doc-processing/${SAFE_NAME}.meta', 'w') as f:
+                  f.write(final_json)
+              "
               echo "✓ Prepared $file"
             fi
           done
