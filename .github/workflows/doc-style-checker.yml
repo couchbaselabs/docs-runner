@@ -28,6 +28,12 @@ on:
       GEMINI_API_KEY:
         description: "Google Gemini API key"
         required: true
+      GEMINI_API_KEY_2: 
+        description: "Optional second Google Gemini API key"
+        required: false
+      GEMINI_API_KEY_3:
+        description: "Optional third Google Gemini API key"
+        required: false
       ACTION_TOKEN:
         description: "GitHub token for posting comments"
         required: true
