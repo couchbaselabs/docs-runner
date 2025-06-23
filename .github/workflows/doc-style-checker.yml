@@ -265,13 +265,16 @@ jobs:
                 continue;
               }
               
-              // Process the nested structure from your API
+              // Process the nested structure from your API correctly
               let fileIssues = [];
+              let issueCounter = 1;
+              
               result.issues.forEach(categoryGroup => {
                 if (categoryGroup.issues && Array.isArray(categoryGroup.issues)) {
                   categoryGroup.issues.forEach(issue => {
                     fileIssues.push({
                       category: categoryGroup.category,
+                      issueNumber: issueCounter++,
                       ...issue
                     });
                   });
@@ -285,7 +288,7 @@ jobs:
               
               hasIssues = true;
               totalIssues += fileIssues.length;
-              comment += `### 📋 ${filename}\n**${fileIssues.length} issue${fileIssues.length > 1 ? 's' : ''} found**\n\n`;
+              comment += `### 📋 ${filename}\n\n`;
               
               // Group by category
               const byCategory = {};
@@ -296,17 +299,18 @@ jobs:
               });
               
               for (const [category, issues] of Object.entries(byCategory)) {
-                comment += `#### ${category}\n\n`;
+                comment += `## ${category}\n\n`;
                 
-                issues.forEach((issue, i) => {
-                  comment += `<details>\n<summary><strong>Issue ${i + 1}</strong></summary>\n\n`;
+                issues.forEach((issue) => {
+                  comment += `▼ **Issue ${issue.issueNumber}**\n\n`;
                   
                   if (issue.problem) {
                     comment += `**Problem:** ${issue.problem}\n\n`;
                   }
                   
                   if (issue.problematicText) {
-                    comment += `**Text:**\n\`\`\`\n${issue.problematicText}\n\`\`\`\n\n`;
+                    comment += `**Text:**\n\n`;
+                    comment += `\`\`\`\n${issue.problematicText}\n\`\`\`\n\n`;
                   }
                   
                   if (issue.location) {
@@ -321,19 +325,19 @@ jobs:
                     comment += `**Guideline:** ${issue.guideline}\n\n`;
                   }
                   
-                  comment += `</details>\n\n`;
+                  comment += `---\n\n`;
                 });
               }
             }
             
             if (hasIssues) {
-              const summary = `🔍 **Summary:** ${totalIssues} issue${totalIssues > 1 ? 's' : ''} found across ${Object.keys(results).length} file${Object.keys(results).length > 1 ? 's' : ''}\n\n`;
+              const summary = `🔍 **Found ${totalIssues} style issue${totalIssues > 1 ? 's' : ''} in ${Object.keys(results).length} file${Object.keys(results).length > 1 ? 's' : ''}**\n\n`;
               comment = comment.replace('## 📝 Doc Style Checker Results\n\n', `## 📝 Doc Style Checker Results\n\n${summary}`);
             } else if (Object.keys(results).length > 0) {
               comment += '🎉 **All documentation looks great!** No style issues found.\n\n';
             }
             
-            comment += '---\n*Automated by [Doc Style Checker](https://doc-style-checker.vercel.app/) • Couchbase Documentation Style Guide*';
+            comment += '---\n\n*Automated by [Doc Style Checker](https://doc-style-checker.vercel.app/) using Couchbase Documentation Style Guide*';
             
             try {
               const [owner, repo] = '${{ inputs.repository }}'.split('/');
