@@ -28,12 +28,6 @@ on:
       GEMINI_API_KEY:
         description: "Google Gemini API key"
         required: true
-      GEMINI_API_KEY_2:
-        description: "Google Gemini API key"
-        required: true
-      GEMINI_API_KEY_3:
-        description: "Google Gemini API key"
-        required: true
       ACTION_TOKEN:
         description: "GitHub token for posting comments"
         required: true
@@ -75,56 +69,35 @@ jobs:
           mkdir -p /tmp/doc-processing
           echo "Processing files..."
           
-          # Create Python script for processing content
-          python3 -c "
-          import os
-          script_content = '''import json
-          import sys
-          
-          if len(sys.argv) != 3:
-              print(\"Usage: python process_content.py <file_path> <meta_path>\")
-              sys.exit(1)
-          
-          file_path = sys.argv[1]
-          meta_path = sys.argv[2]
-          
-          try:
-              with open(file_path, \"r\", encoding=\"utf-8\") as f:
-                  content = f.read()
-              
-              with open(meta_path, \"r\") as f:
-                  template = f.read()
-              
-              escaped_content = json.dumps(content)
-              final_json = template.replace('\"CONTENT_PLACEHOLDER\"', escaped_content)
-              
-              with open(meta_path, \"w\") as f:
-                  f.write(final_json)
-              
-              print(f\"Successfully processed {file_path}\")
-          except Exception as e:
-              print(f\"Error processing {file_path}: {e}\")
-              sys.exit(1)
-          '''
-          
-          with open('/tmp/process_content.py', 'w') as f:
-              f.write(script_content)
-          "
-          
           echo '${{ steps.changed-files.outputs.files }}' | while IFS= read -r file; do
             if [[ -n "$file" && -f "$file" ]]; then
               echo "Preparing: $file"
               SAFE_NAME=$(echo "$(basename "$file")" | sed 's/[^a-zA-Z0-9._-]/_/g')
               
-              # Create JSON template
-              echo '{"filename": "FILE_PLACEHOLDER", "content": "CONTENT_PLACEHOLDER"}' > "/tmp/doc-processing/${SAFE_NAME}.meta"
+              # Create a simple JSON file with proper escaping
+              python3 -c "
+          import json
+          import sys
+          
+          filename = '$file'
+          
+          try:
+              with open(filename, 'r', encoding='utf-8') as f:
+                  content = f.read()
               
-              # Replace filename placeholder
-              sed -i "s|FILE_PLACEHOLDER|$file|g" "/tmp/doc-processing/${SAFE_NAME}.meta"
+              data = {
+                  'filename': filename,
+                  'content': content
+              }
               
-              # Execute the Python script to handle content escaping
-              python3 /tmp/process_content.py "$file" "/tmp/doc-processing/${SAFE_NAME}.meta"
-              echo "✓ Prepared $file"
+              with open('/tmp/doc-processing/${SAFE_NAME}.meta', 'w') as f:
+                  json.dump(data, f)
+              
+              print(f'✓ Prepared {filename}')
+          except Exception as e:
+              print(f'✗ Error processing {filename}: {e}')
+              sys.exit(1)
+          "
             fi
           done
 
@@ -143,10 +116,16 @@ jobs:
           const https = require('https');
           
           async function checkDocStyle(content, filename) {
+            console.log(`📤 Sending request for: ${filename}`);
+            console.log(`📝 Content preview: ${content.substring(0, 100)}...`);
+            console.log(`📏 Content length: ${content.length}`);
+            
             const data = JSON.stringify({
               content: content,
               filename: filename
             });
+            
+            console.log(`📦 Request data size: ${data.length} bytes`);
             
             const options = {
               hostname: 'doc-style-checker.vercel.app',
@@ -167,31 +146,38 @@ jobs:
                 });
                 res.on('end', () => {
                   try {
-                    console.log(`Response status: ${res.statusCode}`);
-                    console.log(`Response body: ${responseData}`);
+                    console.log(`📨 Response status: ${res.statusCode}`);
+                    console.log(`📨 Response headers:`, JSON.stringify(res.headers));
+                    console.log(`📨 Response body preview: ${responseData.substring(0, 500)}...`);
                     
                     if (res.statusCode !== 200) {
+                      console.error(`❌ Non-200 status code: ${res.statusCode}`);
+                      console.error(`❌ Full response: ${responseData}`);
                       throw new Error(`HTTP ${res.statusCode}: ${responseData}`);
                     }
                     const result = JSON.parse(responseData);
+                    console.log(`✅ Successfully parsed response for ${filename}`);
                     resolve(result);
                   } catch (e) {
-                    console.error('Response parsing error:', e.message);
-                    console.error('Raw response:', responseData);
+                    console.error('❌ Response parsing error:', e.message);
+                    console.error('❌ Raw response:', responseData);
                     reject(e);
                   }
                 });
               });
               
               req.on('error', (e) => {
+                console.error(`❌ Request error for ${filename}:`, e.message);
                 reject(e);
               });
               
-              req.setTimeout(30000, () => {
+              req.setTimeout(45000, () => {
+                console.error(`⏰ Request timeout for ${filename}`);
                 req.destroy();
-                reject(new Error('Request timeout'));
+                reject(new Error('Request timeout after 45 seconds'));
               });
               
+              console.log(`🚀 Sending request to API...`);
               req.write(data);
               req.end();
             });
@@ -214,18 +200,22 @@ jobs:
               
               try {
                 const metadata = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-                console.log(`🔍 Checking: ${metadata.filename}`);
+                console.log(`🔍 Processing: ${metadata.filename}`);
+                console.log(`📄 Content preview: "${metadata.content.substring(0, 150)}..."`);
+                console.log(`📏 Content length: ${metadata.content.length} characters`);
+                console.log(`🔤 Content type: ${typeof metadata.content}`);
                 
                 const result = await checkDocStyle(metadata.content, metadata.filename);
                 results[metadata.filename] = result;
                 
                 const issueCount = result.issues ? result.issues.length : 0;
-                console.log(`✓ ${metadata.filename}: ${issueCount} issue(s) found`);
+                console.log(`✅ ${metadata.filename}: ${issueCount} issue(s) found`);
                 
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                await new Promise(resolve => setTimeout(resolve, 3000));
                 
               } catch (error) {
-                console.error(`✗ Error processing ${metaFile}:`, error.message);
+                console.error(`❌ Error processing ${metaFile}:`, error.message);
+                console.error(`❌ Error stack:`, error.stack);
                 const filename = metaFile.replace('.meta', '');
                 results[filename] = { error: error.message };
               }
