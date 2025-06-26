@@ -55,7 +55,7 @@ jobs:
         working-directory: ./content-repo
         run: |
           echo "Getting changed files between ${{ inputs.base_sha }} and ${{ inputs.head_sha }}"
-          CHANGED_FILES=$(git diff --name-only ${{ inputs.base_sha }} ${{ inputs.head_sha }} | grep -E '\.(adoc|md)$' || true)
+          CHANGED_FILES=$(git diff --name-only ${{ inputs.base_sha }} ${{ inputs.head_sha }} | grep -E '\.adoc$' || true)
           echo "Changed documentation files:"
           echo "$CHANGED_FILES"
           echo "files<<EOF" >> $GITHUB_OUTPUT
@@ -79,7 +79,7 @@ jobs:
         if: steps.changed-files.outputs.files != ''
         run: |
           npm init -y
-          npm install parse-git-diff handlebars json-diff
+          npm install handlebars
 
       - name: Process files and get AI suggestions
         if: steps.changed-files.outputs.files != ''
@@ -88,29 +88,60 @@ jobs:
           cat > ../process_docs.js << 'EOF'
           const fs = require('fs');
           const https = require('https');
-          const parseGitDiff = require('parse-git-diff');
           
-          // Parse git diff to understand what lines changed
+          // Simple git diff parser (avoiding ES module issues)
           function parseDiffFile(filePath) {
             const diffContent = fs.readFileSync(filePath, "utf-8");
-            const diff = Object.fromEntries(
-              parseGitDiff(diffContent)
-                .files
-                .filter(f => f.path.match(/\.(adoc|md)$/))
-                .map(f => [f.path, f.chunks])
-            );
+            const lines = diffContent.split('\n');
+            const fileChanges = {};
             
-            return ((file, line) => {
-              if (!diff[file]) return null;
+            let currentFile = null;
+            let currentHunk = null;
+            let lineNumber = 0;
+            
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i];
               
-              for (const chunk of diff[file]) {
-                const {start, lines} = chunk.toFileRange;
-                if (line >= start && line < (start + lines)) {
-                  const change = chunk.changes.find(c => c.lineAfter == line);
-                  return change ? change.content : null;
+              // Look for file headers
+              if (line.startsWith('diff --git')) {
+                const match = line.match(/diff --git a\/(.+) b\/(.+)/);
+                if (match && match[1].endsWith('.adoc')) {
+                  currentFile = match[1];
+                  fileChanges[currentFile] = {};
+                }
+                continue;
+              }
+              
+              // Look for hunk headers
+              if (line.startsWith('@@') && currentFile) {
+                const match = line.match(/@@ -\d+,?\d* \+(\d+),?(\d*) @@/);
+                if (match) {
+                  lineNumber = parseInt(match[1], 10);
+                  currentHunk = true;
+                }
+                continue;
+              }
+              
+              // Process added lines in the current file
+              if (currentFile && currentHunk && line.startsWith('+') && !line.startsWith('+++')) {
+                const content = line.substring(1);
+                fileChanges[currentFile][lineNumber] = content;
+                lineNumber++;
+              } else if (currentFile && currentHunk && !line.startsWith('-') && !line.startsWith('\\')) {
+                // Context lines and unchanged lines
+                if (line.startsWith(' ') || (!line.startsWith('+') && !line.startsWith('-'))) {
+                  lineNumber++;
                 }
               }
-              return null;
+              
+              // Reset when we hit a new file
+              if (line.startsWith('diff --git') || line.startsWith('index ')) {
+                currentHunk = false;
+              }
+            }
+            
+            return ((file, line) => {
+              return fileChanges[file] && fileChanges[file][line] ? fileChanges[file][line] : null;
             });
           }
           
@@ -177,7 +208,7 @@ jobs:
                 });
                 
                 if (filteredRules.length > 0) {
-                  // Group by line number like your teammate's code
+                  // Group by line number manually (avoiding Object.groupBy compatibility issues)
                   const rulesByLine = {};
                   filteredRules.forEach(rule => {
                     const line = rule.Line;
@@ -273,11 +304,10 @@ jobs:
                     `* **${rule.Check}** (${rule.Severity}) - ${rule.Message}`
                   ).join('\n');
                   
-                  const commentBody = '**Automated review comment from Gemini AI:**\n\n```suggestion\n' + 
-                    record.pre + 
-                    '\n```\n\n**Style Guide Issues Found:**\n' + 
-                    rulesList + 
-                    '\n\n---\n*Powered by [Doc Style Checker](https://doc-style-checker.vercel.app/) using Couchbase Documentation Style Guide*';
+                  const commentBody = "**Automated review comment from Gemini AI:**\n\n" + 
+                    "```suggestion\n" + record.pre + "\n```\n\n" +
+                    "**Style Guide Issues Found:**\n" + rulesList + "\n\n" +
+                    "---\n*Powered by [Doc Style Checker](https://doc-style-checker.vercel.app/) using Couchbase Documentation Style Guide*";
                   
                   try {
                     await github.rest.pulls.createReviewComment({
