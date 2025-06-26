@@ -1,4 +1,4 @@
-Data Modelling
+Data moeeldelling 
 
 couchbase Sync Gateway’s data model; for secure cloud-to-edge synchronization of enterprise data.
 
