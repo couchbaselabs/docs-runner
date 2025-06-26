@@ -1,4 +1,4 @@
-name: Doc Style Checker
+name: Doc Style Checker (Vale Compatible)
 
 on:
   workflow_call:
@@ -38,7 +38,6 @@ on:
         description: "GitHub token for posting comments"
         required: true
 
-
 jobs:
   doc-style-check:
     runs-on: ubuntu-latest
@@ -63,32 +62,12 @@ jobs:
           echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Process changed documentation files
+      - name: Create git diff for parsing
         if: steps.changed-files.outputs.files != ''
         working-directory: ./content-repo
         run: |
-          mkdir -p /tmp/doc-processing
-          echo "Processing files using Base64 encoding..."
-          
-          echo '${{ steps.changed-files.outputs.files }}' | while IFS= read -r file; do
-            if [[ -n "$file" && -f "$file" ]]; then
-              echo "Preparing: $file"
-              SAFE_NAME=$(echo "$(basename "$file")" | sed 's/[^a-zA-Z0-9._-]/_/g')
-              
-              # Base64 encode the content to avoid JSON escaping issues
-              CONTENT_B64=$(base64 -w 0 "$file")
-              
-              # Create simple JSON with base64 content
-              cat > "/tmp/doc-processing/${SAFE_NAME}.meta" << EOF
-          {
-            "filename": "$file",
-            "contentBase64": "$CONTENT_B64"
-          }
-          EOF
-              
-              echo "✓ Prepared $file ($(wc -c < "$file") bytes)"
-            fi
-          done
+          git diff ${{ inputs.base_sha }} ${{ inputs.head_sha }} > ../diff.txt
+          echo "Diff created with $(wc -l < ../diff.txt) lines"
 
       - name: Setup Node.js
         if: steps.changed-files.outputs.files != ''
@@ -96,63 +75,80 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Run Doc Style Checker
+      - name: Install dependencies
         if: steps.changed-files.outputs.files != ''
         run: |
-          cat > check_docs.js << 'EOF'
+          npm init -y
+          npm install parse-git-diff handlebars json-diff
+
+      - name: Process files and get AI suggestions
+        if: steps.changed-files.outputs.files != ''
+        working-directory: ./content-repo
+        run: |
+          cat > ../process_docs.js << 'EOF'
           const fs = require('fs');
-          const path = require('path');
           const https = require('https');
+          const parseGitDiff = require('parse-git-diff');
           
-          async function checkDocStyle(content, filename) {
-            const data = JSON.stringify({
-              content: content,
-              filename: filename
+          // Parse git diff to understand what lines changed
+          function parseDiffFile(filePath) {
+            const diffContent = fs.readFileSync(filePath, "utf-8");
+            const diff = Object.fromEntries(
+              parseGitDiff(diffContent)
+                .files
+                .filter(f => f.path.match(/\.(adoc|md)$/))
+                .map(f => [f.path, f.chunks])
+            );
+            
+            return ((file, line) => {
+              if (!diff[file]) return null;
+              
+              for (const chunk of diff[file]) {
+                const {start, lines} = chunk.toFileRange;
+                if (line >= start && line < (start + lines)) {
+                  const change = chunk.changes.find(c => c.lineAfter == line);
+                  return change ? change.content : null;
+                }
+              }
+              return null;
             });
+          }
+          
+          // Call your new Vale-compatible endpoint
+          async function checkDocStyleVale(content, filename) {
+            const data = JSON.stringify({ content, filename });
             
             const options = {
               hostname: 'doc-style-checker.vercel.app',
-              path: '/api/check-style',
+              path: '/api/check-style-vale-format',
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'Content-Length': Buffer.byteLength(data, 'utf8'),
-                'User-Agent': 'GitHub-Actions-Doc-Checker/1.0'
+                'User-Agent': 'GitHub-Actions-Doc-Checker-Vale/1.0'
               }
             };
             
             return new Promise((resolve, reject) => {
               const req = https.request(options, (res) => {
                 let responseData = '';
-                res.on('data', (chunk) => {
-                  responseData += chunk;
-                });
+                res.on('data', (chunk) => { responseData += chunk; });
                 res.on('end', () => {
                   try {
                     if (res.statusCode !== 200) {
-                      console.error(`❌ Non-200 status code: ${res.statusCode}`);
-                      console.error(`❌ Full response: ${responseData}`);
                       throw new Error(`HTTP ${res.statusCode}: ${responseData}`);
                     }
-                    const result = JSON.parse(responseData);
-                    resolve(result);
+                    resolve(JSON.parse(responseData));
                   } catch (e) {
-                    console.error('❌ Response parsing error:', e.message);
-                    console.error('❌ Raw response:', responseData);
                     reject(e);
                   }
                 });
               });
               
-              req.on('error', (e) => {
-                console.error(`❌ Request error for ${filename}:`, e.message);
-                reject(e);
-              });
-              
+              req.on('error', reject);
               req.setTimeout(45000, () => {
-                console.error(`⏰ Request timeout for ${filename}`);
                 req.destroy();
-                reject(new Error('Request timeout after 45 seconds'));
+                reject(new Error('Request timeout'));
               });
               
               req.write(data);
@@ -161,38 +157,53 @@ jobs:
           }
           
           async function processAllFiles() {
-            const processingDir = '/tmp/doc-processing';
+            const changedFiles = process.env.CHANGED_FILES.split('\n').filter(f => f.trim());
+            const inDiff = parseDiffFile('../diff.txt');
             const results = {};
             
-            if (!fs.existsSync(processingDir)) {
-              return results;
-            }
-            
-            const metaFiles = fs.readdirSync(processingDir).filter(f => f.endsWith('.meta'));
-            console.log(`Processing ${metaFiles.length} file(s)`);
-            
-            for (const metaFile of metaFiles) {
-              const metaPath = path.join(processingDir, metaFile);
+            for (const file of changedFiles) {
+              if (!file.trim()) continue;
               
               try {
-                const metadata = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+                console.log(`Processing ${file}...`);
+                const content = fs.readFileSync(file, 'utf8');
+                const valeResult = await checkDocStyleVale(content, file);
                 
-                // Decode base64 content
-                const content = Buffer.from(metadata.contentBase64, 'base64').toString('utf8');
+                // Filter results to only include lines that changed
+                const fileRules = valeResult[file] || [];
+                const filteredRules = fileRules.filter(rule => {
+                  const changedContent = inDiff(file, rule.Line);
+                  return changedContent !== null;
+                });
                 
-                const result = await checkDocStyle(content, metadata.filename);
-                results[metadata.filename] = result;
+                if (filteredRules.length > 0) {
+                  // Group by line number like your teammate's code
+                  const rulesByLine = {};
+                  filteredRules.forEach(rule => {
+                    const line = rule.Line;
+                    if (!rulesByLine[line]) {
+                      rulesByLine[line] = [];
+                    }
+                    rulesByLine[line].push(rule);
+                  });
+                  
+                  for (const lineNum of Object.keys(rulesByLine)) {
+                    const lineContent = inDiff(file, parseInt(lineNum));
+                    rulesByLine[lineNum] = {
+                      rules: rulesByLine[lineNum],
+                      pre: lineContent,
+                      new: lineContent // Will be modified by AI suggestion
+                    };
+                  }
+                  results[file] = rulesByLine;
+                }
                 
-                const issueCount = result.issues ? result.issues.length : 0;
-                console.log(`✓ ${metadata.filename}: ${issueCount} issue(s) found`);
-                
-                await new Promise(resolve => setTimeout(resolve, 3000));
+                // Rate limiting
+                await new Promise(resolve => setTimeout(resolve, 2000));
                 
               } catch (error) {
-                console.error(`❌ Error processing ${metaFile}:`, error.message);
-                console.error(`❌ Error stack:`, error.stack);
-                const filename = metaFile.replace('.meta', '').replace(/_/g, '.');
-                results[filename] = { error: error.message };
+                console.error(`Error processing ${file}:`, error.message);
+                results[file] = { error: error.message };
               }
             }
             
@@ -201,18 +212,18 @@ jobs:
           
           processAllFiles()
             .then(results => {
-              fs.writeFileSync('/tmp/style-check-results.json', JSON.stringify(results, null, 2));
-              console.log('✓ Style check completed');
+              fs.writeFileSync('/tmp/vale-results.json', JSON.stringify(results, null, 2));
+              console.log('✓ Vale-compatible results generated');
             })
             .catch(error => {
-              console.error('❌ Style check failed:', error);
+              console.error('❌ Processing failed:', error);
               process.exit(1);
             });
           EOF
           
-          node check_docs.js
+          CHANGED_FILES="${{ steps.changed-files.outputs.files }}" node ../process_docs.js
 
-      - name: Post PR Comment
+      - name: Post PR Comments
         if: steps.changed-files.outputs.files != ''
         uses: actions/github-script@v7
         with:
@@ -222,110 +233,68 @@ jobs:
             
             let results = {};
             try {
-              const resultsData = fs.readFileSync('/tmp/style-check-results.json', 'utf8');
+              const resultsData = fs.readFileSync('/tmp/vale-results.json', 'utf8');
               results = JSON.parse(resultsData);
             } catch (error) {
+              console.log('No results to process');
               return;
             }
             
-            let comment = '## 📝 Doc Style Checker Results\n\n';
-            let hasIssues = false;
-            let totalIssues = 0;
+            // Delete existing comments from the bot
+            const comments = await github.rest.pulls.listReviewComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: ${{ inputs.pull_request_number }},
+              per_page: 100
+            });
             
-            for (const [filename, result] of Object.entries(results)) {
-              if (result.error) {
-                comment += `### ❌ ${filename}\n**Error:** \`${result.error}\`\n\n`;
+            const botComments = comments.data.filter(
+              comment => comment.body.includes('Automated review comment from Gemini AI')
+            );
+            
+            await Promise.all(botComments.map(comment =>
+              github.rest.pulls.deleteReviewComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: comment.id
+              })
+            ));
+            
+            // Post new comments for each issue
+            for (const [file, lines] of Object.entries(results)) {
+              if (lines.error) {
+                console.error(`Error in ${file}: ${lines.error}`);
                 continue;
               }
               
-              if (!result.issues || result.issues.length === 0) {
-                comment += `### ✅ ${filename}\nNo style issues found!\n\n`;
-                continue;
-              }
-              
-              // Process the nested structure from your API correctly
-              let fileIssues = [];
-              let issueCounter = 1;
-              
-              result.issues.forEach(categoryGroup => {
-                if (categoryGroup.issues && Array.isArray(categoryGroup.issues)) {
-                  categoryGroup.issues.forEach(issue => {
-                    fileIssues.push({
-                      category: categoryGroup.category,
-                      issueNumber: issueCounter++,
-                      ...issue
+              for (const [lineNum, record] of Object.entries(lines)) {
+                if (record.rules && record.rules.length > 0) {
+                  const rulesList = record.rules.map(rule => 
+                    `* **${rule.Check}** (${rule.Severity}) - ${rule.Message}`
+                  ).join('\n');
+                  
+                  const commentBody = '**Automated review comment from Gemini AI:**\n\n```suggestion\n' + 
+                    record.pre + 
+                    '\n```\n\n**Style Guide Issues Found:**\n' + 
+                    rulesList + 
+                    '\n\n---\n*Powered by [Doc Style Checker](https://doc-style-checker.vercel.app/) using Couchbase Documentation Style Guide*';
+                  
+                  try {
+                    await github.rest.pulls.createReviewComment({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      pull_number: ${{ inputs.pull_request_number }},
+                      body: commentBody,
+                      commit_id: '${{ inputs.head_sha }}',
+                      path: file,
+                      line: parseInt(lineNum),
+                      side: 'RIGHT'
                     });
-                  });
+                    
+                    console.log(`✓ Posted comment for ${file}:${lineNum}`);
+                  } catch (error) {
+                    console.error(`❌ Failed to post comment for ${file}:${lineNum}:`, error.message);
+                  }
                 }
-              });
-              
-              if (fileIssues.length === 0) {
-                comment += `### ✅ ${filename}\nNo style issues found!\n\n`;
-                continue;
               }
-              
-              hasIssues = true;
-              totalIssues += fileIssues.length;
-              comment += `### 📋 ${filename}\n\n`;
-              
-              // Group by category
-              const byCategory = {};
-              fileIssues.forEach(issue => {
-                const cat = issue.category || 'General';
-                if (!byCategory[cat]) byCategory[cat] = [];
-                byCategory[cat].push(issue);
-              });
-              
-              for (const [category, issues] of Object.entries(byCategory)) {
-                comment += `## ${category}\n\n`;
-                
-                issues.forEach((issue) => {
-                  comment += `▼ **Issue ${issue.issueNumber}**\n\n`;
-                  
-                  if (issue.problem) {
-                    comment += `**Problem:** ${issue.problem}\n\n`;
-                  }
-                  
-                  if (issue.problematicText) {
-                    comment += `**Text:**\n\n`;
-                    comment += `\`\`\`\n${issue.problematicText}\n\`\`\`\n\n`;
-                  }
-                  
-                  if (issue.location) {
-                    comment += `**Location:** ${issue.location}\n\n`;
-                  }
-                  
-                  if (issue.suggestion) {
-                    comment += `**Suggestion:** ${issue.suggestion}\n\n`;
-                  }
-                  
-                  if (issue.guideline) {
-                    comment += `**Guideline:** ${issue.guideline}\n\n`;
-                  }
-                  
-                  comment += `---\n\n`;
-                });
-              }
-            }
-            
-            if (hasIssues) {
-              const summary = `🔍 **Found ${totalIssues} style issue${totalIssues > 1 ? 's' : ''} in ${Object.keys(results).length} file${Object.keys(results).length > 1 ? 's' : ''}**\n\n`;
-              comment = comment.replace('## 📝 Doc Style Checker Results\n\n', `## 📝 Doc Style Checker Results\n\n${summary}`);
-            } else if (Object.keys(results).length > 0) {
-              comment += '🎉 **All documentation looks great!** No style issues found.\n\n';
-            }
-            
-            comment += '---\n\n*Automated by [Doc Style Checker](https://doc-style-checker.vercel.app/) using Couchbase Documentation Style Guide*';
-            
-            try {
-              const [owner, repo] = '${{ inputs.repository }}'.split('/');
-              await github.rest.issues.createComment({
-                issue_number: parseInt('${{ inputs.pull_request_number }}'),
-                owner: owner,
-                repo: repo,
-                body: comment
-              });
-            } catch (error) {
-              console.error('❌ Failed to post comment:', error);
-              throw error;
             }

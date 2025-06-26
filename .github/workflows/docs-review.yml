@@ -1,7 +1,11 @@
-name: Documentation Review
+name: Documentation Review (Vale Compatible)
+
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - '**/*.adoc'
+      - '**/*.md'
 
 jobs:
   doc-style-check:
