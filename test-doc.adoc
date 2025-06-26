@@ -1,6 +1,6 @@
 Data moeeldelling 
 
-couchbase Sync Gateway’s data model; for secure cloud-to-edge synchronization of enterprise data.
+couchbase Sync Gateway’s data model; for secure cloud-to-edge synchronization of enterprise datas. 
 
 introduction
 
@@ -26,7 +26,7 @@ _exp
 
 _purged
 
-_removed
+_remoeved
 
 Any document that matches the reserved property names listed will be rejected by Sync Gateway — see Example 1 for the error details.
 
