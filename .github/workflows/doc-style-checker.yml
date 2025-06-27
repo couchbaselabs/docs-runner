@@ -55,7 +55,7 @@ jobs:
         working-directory: ./content-repo
         run: |
           echo "Getting changed files between ${{ inputs.base_sha }} and ${{ inputs.head_sha }}"
-          CHANGED_FILES=$(git diff --name-only ${{ inputs.base_sha }} ${{ inputs.head_sha }} | grep -E '\.adoc$' || true)
+          CHANGED_FILES=$(git diff --name-only ${{ inputs.base_sha }} ${{ inputs.head_sha }} | grep -E '\.(adoc|md)$' || true)
           echo "Changed documentation files:"
           echo "$CHANGED_FILES"
           echo "files<<EOF" >> $GITHUB_OUTPUT
@@ -105,7 +105,7 @@ jobs:
               // Look for file headers
               if (line.startsWith('diff --git')) {
                 const match = line.match(/diff --git a\/(.+) b\/(.+)/);
-                if (match && match[1].endsWith('.adoc')) {
+                if (match && (match[1].endsWith('.adoc') || match[1].endsWith('.md'))) {
                   currentFile = match[1];
                   fileChanges[currentFile] = {};
                 }
