@@ -89,7 +89,7 @@ jobs:
       - name: run git diff
         working-directory: ./content-repo
         run: |
-          git diff $BASE_SHA $CONTENT_PATH > ../docs-runner/diff.txt
+          git diff -U0 $BASE_SHA $CONTENT_PATH > ../docs-runner/diff.txt
         env:
           CONTENT_PATH: ${{ inputs.path }}
           BASE_SHA: ${{ inputs.base_sha }}
