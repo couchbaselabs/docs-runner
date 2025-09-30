@@ -81,7 +81,11 @@ jobs:
         run: |
           CHANGED=$(git diff --name-only $BASE_SHA $CONTENT_PATH | xargs)
           echo $CHANGED
-          vale --config=../docs-runner/.vale.ini \
+
+          if [ ! -f .vale.ini ]; then
+            cp ../docs-runner/.vale.ini .
+          fi
+          vale --config=./.vale.ini \
             --minAlertLevel=warning \
             --output=JSON \
             --no-exit \
@@ -90,6 +94,7 @@ jobs:
         env:
           CONTENT_PATH: ${{ inputs.path }}
           BASE_SHA: ${{ inputs.base_sha }}
+
 
       - name: run git diff
         working-directory: ./content-repo
