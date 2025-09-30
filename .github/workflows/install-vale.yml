@@ -1,0 +1,16 @@
+name: Test vale install
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-vale:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install Vale 3.12
+        run: |
+          RELEASE=vale_3.12.0_Linux_64-bit.tar.gz
+          curl -LO https://github.com/errata-ai/vale/releases/download/v3.12.0/$RELEASE
+          tar -xvzf $RELEASE
+          ./vale -v
