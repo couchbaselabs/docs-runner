@@ -24,6 +24,10 @@ on:
         type: string
         description: "The head sha to comment against"
         required: true
+      style_guide_ref:
+        type: string
+        description: "Ref of docs-style-guide to checkout"
+        default: main
 
 jobs:
   run-vale:
@@ -67,6 +71,7 @@ jobs:
       - name: fetch styles
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.style_guide_ref }}
           repository: couchbaselabs/docs-style-guide
           sparse-checkout: ValeStyles/
           path: docs-style-guide
