@@ -22,7 +22,7 @@ function parseDiffFile(filePath) {
 
   const diff = Object.fromEntries(parseGitDiff(diffContent)
     .files
-    .filter(f => f.path.match(/\.adoc$/))
+    .filter(f => f.path.match(/\.(adoc|ya?ml)$/))
     .map(f => [f.path, f.chunks]))
   console.dir(diff, {depth: 4})
   return ((file, line) => {
