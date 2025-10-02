@@ -114,7 +114,7 @@ for (const [file, lines] of Object.entries(v2)) {
   const collected = []
 
   for (const [line, record] of Object.entries(lines)) {
-    collected.push({line, ...record})
+    collected.push({line, file, ...record})
   }
 
   const payload = 
@@ -196,11 +196,11 @@ for (const [file, lines] of Object.entries(v2)) {
   await Promise.all(updated.map(async (record) => {
     if (record.new !== record.pre) {
       console.log(record);
-      console.log(`Line ${record.line} in file ${file} changed from "${record.pre}" to "${record.new}"`);
+      console.log(`Line ${record.line} in file ${record.file} changed from "${record.pre}" to "${record.new}"`);
 
-      console.log(file, record.line, record.new, record.rules);
+      console.log(record.file, record.line, record.new, record.rules);
 
-      await postComment(file, record.line, record.new, record.rules);
+      await postComment(record.file, record.line, record.new, record.rules);
     }
   }));
 }
