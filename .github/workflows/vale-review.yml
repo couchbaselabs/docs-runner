@@ -9,7 +9,7 @@ on:
         type: string
       path:
         type: string
-        description: "The startPath pointing to the folder containing antora.yml"
+        description: "The startPath pointing to the folder to test. This is the location for any custom .vale.ini"
         required: false
         default: "."
       pull_request_number:
@@ -84,18 +84,21 @@ jobs:
       - name: run vale
         working-directory: ./content-repo
         run: |
-          CHANGED=$(git diff --name-only $BASE_SHA $CONTENT_PATH | xargs)
+          RUNNER_DIR=$(pwd)/../docs-runner
+          cd $CONTENT_PATH
+
+          CHANGED=$(git diff --name-only $BASE_SHA | xargs)
           echo $CHANGED
 
           if [ ! -f .vale.ini ]; then
-            cp ../docs-runner/.vale.ini .
+            cp $RUNNER_DIR/.vale.ini .
           fi
           vale --config=./.vale.ini \
             --minAlertLevel=warning \
             --output=JSON \
             --no-exit \
-            $CHANGED > ../docs-runner/vale.json
-          cat ../docs-runner/vale.json
+            $CHANGED > $RUNNER_DIR/vale.json
+          cat $RUNNER_DIR/vale.json
         env:
           CONTENT_PATH: ${{ inputs.path }}
           BASE_SHA: ${{ inputs.base_sha }}
