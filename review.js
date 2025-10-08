@@ -1,12 +1,14 @@
 'use strict';
 import OpenAI from "openai";
 import * as fs from "fs";
+import path from "node:path";
 import { Octokit } from "octokit"
 import Handlebars from "handlebars";
 import { diffString, diff } from 'json-diff';
 import { strict as assert } from 'node:assert';
 
 
+const content_path = process.env.CONTENT_PATH
 const octokit = new Octokit({ auth: process.env.GH_TOKEN })
 const openai = new OpenAI();
 
@@ -213,7 +215,7 @@ async function postComment(file, line, newContent, rules) {
     {
     body: payload,
     commit_id: head_sha,
-    path: file,
+    path: path.join(content_path, file),
     line: parseInt(line),
     start_side: 'RIGHT',
     side: 'RIGHT',

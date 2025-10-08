@@ -123,6 +123,7 @@ jobs:
           npm install
           node review.js
         env:
+          CONTENT_PATH: ${{ inputs.path }}
           GH_TOKEN: ${{ secrets.ACTION_TOKEN }}
           REPOSITORY: ${{ inputs.repository }}
           HEAD_SHA: ${{ inputs.head_sha }}
