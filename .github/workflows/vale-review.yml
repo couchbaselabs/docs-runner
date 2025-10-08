@@ -87,7 +87,7 @@ jobs:
           RUNNER_DIR=$(pwd)/../docs-runner
           cd $CONTENT_PATH
 
-          CHANGED=$(git diff --name-only $BASE_SHA | xargs)
+          CHANGED=$(git diff --name-only $BASE_SHA --relative . | xargs)
           echo $CHANGED
 
           if [ ! -f .vale.ini ]; then
@@ -107,7 +107,7 @@ jobs:
       - name: run git diff
         working-directory: ./content-repo
         run: |
-          git diff -U0 $BASE_SHA $CONTENT_PATH > ../docs-runner/diff.txt
+          git diff -U0 $BASE_SHA --relative=$CONTENT_PATH > ../docs-runner/diff.txt
           head ../docs-runner/diff.txt
         env:
           CONTENT_PATH: ${{ inputs.path }}
