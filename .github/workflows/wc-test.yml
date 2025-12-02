@@ -1,0 +1,19 @@
+name: Test workflow for wordcount
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: test
+        run: |
+          sudo snap install htmlq
+          sudo snap install tree
+          tree
+          scripts/docstats
+
+
