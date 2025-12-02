@@ -9,7 +9,10 @@ pwd
 for dir in build/*/*/
 do
   echo Checking $dir
+  find $dir -name '*.html' -exec scripts/hwc {} ';'
   find $dir -name '*.html'
+  perl -e 'print "hello\n"'
+
   WC=$(
     find $dir \
       -name '*.html' \
@@ -22,7 +25,6 @@ do
   fi  
 done
 
-man find
 
 echo
 
