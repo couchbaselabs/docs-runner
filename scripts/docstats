@@ -4,8 +4,11 @@ echo "Word counts of all <article> content:"
 echo =============
 echo
 
+pwd
+
 for dir in build/*/*/
 do
+  echo Checking $dir
   WC=$(
     find $dir \
       -name '*.html' \
