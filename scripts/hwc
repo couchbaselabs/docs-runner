@@ -1,3 +1,4 @@
 #!/bin/bash
 
-htmlq -t -f $1 article | wc -c
+echo testing $1
+cat $1 | htmlq -t article | wc -c
