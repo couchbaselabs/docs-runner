@@ -9,6 +9,7 @@ pwd
 for dir in build/*/*/
 do
   echo Checking $dir
+  find $dir -name '*.html'
   WC=$(
     find $dir \
       -name '*.html' \
@@ -20,6 +21,8 @@ do
     echo $WC
   fi  
 done
+
+man find
 
 echo
 
