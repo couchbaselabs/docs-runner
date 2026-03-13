@@ -1,21 +1,23 @@
 'use strict';
-import OpenAI from "openai";
 import * as fs from "fs";
 import path from "node:path";
 import { Octokit } from "octokit"
 import Handlebars from "handlebars";
 import { diffString, diff } from 'json-diff';
 import { strict as assert } from 'node:assert';
+import { promisify } from "util"
+import * as cp from "child_process"
 
+const exec = promisify(cp.exec)
 
 const content_path = process.env.CONTENT_PATH
 const octokit = new Octokit({ auth: process.env.GH_TOKEN })
-const openai = new OpenAI();
 
 const head_sha = process.env.HEAD_SHA
 const pull_request_number = process.env.PULL_REQUEST_NUMBER
 const repository = process.env.REPOSITORY
-const openai_model = process.env.OPENAI_MODEL || "gpt-4o-mini"
+
+const llm_model = process.env.LLM_MODEL || "claude-haiku-4-5-20251001"
 
 import parseGitDiff from 'parse-git-diff';
  
@@ -26,7 +28,6 @@ function parseDiffFile(filePath) {
     .files
     .filter(f => f.path.match(/\.(adoc|ya?ml)$/))
     .map(f => [f.path, f.chunks]))
-  console.dir(diff, {depth: 4})
   return ((file, line) => {
     // Check if the file is in the diff
     if (! diff[file]) return null;
@@ -46,15 +47,13 @@ const inDiff = parseDiffFile("./diff.txt");
 
 const vale = JSON.parse(fs.readFileSync('vale.json', "utf-8"))
 
-const v2 = Object.fromEntries(
+const prep = Object.fromEntries(
   Object.entries(vale)
     .flatMap(([file, rules]) => {
       const rfiltered = rules.flatMap(r => {
         const Content = inDiff(file, r.Line)
-        console.log({Content, file, r})
         return (Content === null) ? [] : {...r, Content}
       })
-      console.log("rfiltered", rfiltered)
 
       if (rfiltered.length) {
         const rulesByLine = Object.groupBy(rfiltered, r => r.Line)
@@ -71,35 +70,29 @@ const v2 = Object.fromEntries(
       }
     }))
 
-    console.log(2, v2)
+fs.writeFileSync('vale-intermediate.json', JSON.stringify(prep), 'utf-8')
 
-// Step 2: Create an Assistant (once)
-const assistant = await openai.beta.assistants.create({
-  name: "Couchbase Style guide assistant",
-  instructions: 
-    `Analyze a line of documentation in Asciidoc format and a JSON containing reports from Vale (a style-guide linter) about that line, to recommend content edits. 
-    When you find a Vale recommendation, you should apply it to the line, but only if it makes sense in that context.
-    Recommend a change only where the change is appropriate. 
-    Recommend a change only where the changed text differs from the original text.
-    Remember that the line is in Asciidoc format, so you should keep the Asciidoc formatting (unless the Vale rule is specifically about Asciidoc formatting).
-    Remember that Couchbase is a database product, and in some cases, the recommendation may not be appropriate for a database context.
-    Don't truncate the line with '...', return the whole string in full.
-    If you didn't find any issues, return the original line.
-    If your edit makes the sentence ungrammatical or just "worse", give up and return the original line.
-    To avoid making the diffs too big, don't add or remove any spaces.
-    Do add newlines if the style guide rule requests 'ventilated prose'.
-    Return just the line, without the backticks to format the asciidoc code.`,
-  model: openai_model,
-  tools: [{ type: "file_search" }]
-}); 
+const { stdout } = await exec(
+  `droid exec --auto medium --model ${llm_model} -f review.md`)
 
-// Step 3: Create a thread
-const thread = await openai.beta.threads.create();
+console.log(stdout)
+
+const updated = JSON.parse(fs.readFileSync('vale-new.json', "utf-8"));
+
+console.dir(updated)
+
+console.dir(diff(prep, updated), {depth: 8})
+
+  // TODO revise and reenable this sanity check:
+  // for (const [equality, subobject] of diff(collected, updated)) {
+  //   assert.equal(equality, '~', 'AI sanity check: expect altered sub-object')
+  //   assert.deepEqual(Object.keys(subobject), ['new__added'], 'AI sanity check: only new field added')
+  // }
 
 const fence = "```"
 
 const template = Handlebars.compile(
-`Automated review comment from Vale and OpenAI using the ${openai_model} model:
+`Automated review comment from Vale and OpenAI using the ${llm_model} model:
 
   ${fence}suggestion
   {{{newContent}}}
@@ -111,101 +104,43 @@ const template = Handlebars.compile(
   {{/each}}`)
 
 
-
-for (const [file, lines] of Object.entries(v2)) {
-  const collected = []
-
-  for (const [line, record] of Object.entries(lines)) {
-    collected.push({line, file, ...record})
+// Fetch all comments on the pull request
+const comments = await octokit.request(
+  `GET /repos/${repository}/pulls/${pull_request_number}/comments`, 
+  {
+    per_page: 100, // see https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api?apiVersion=2022-11-28 for pagination TODO 
+    headers: {
+      'X-GitHub-Api-Version': '2022-11-28'
+    }
   }
+);
 
-  const payload = 
-    `The following JSON is an array of objects, each containing a line of Asciidoc content and a list of Vale 'rules' that apply to that line.
-    The Vale rules are in JSON format, and the 'rules' field is an array of objects, each containing a 'Check', 'Severity', 'Message', 'Description', and 'Line' field.
-    The 'pre' field is the original line of Asciidoc content.
-    Do not modify any of the existing fields in the JSON.
-    Do not modify the 'rules' field. Really don't. I'll notice.
-    Add only a 'new' field with the recommended new text for the line (or the unchanged line if no change is recommended).
+// Filter comments made by 'tech-comm-team-couchbase'
+const techCommComments = comments.data.filter(comment => comment.user.login === 'tech-comm-team-couchbase');
 
-    ${fence}json
-    ${JSON.stringify(collected, null, 2)}
-    ${fence}
-    
-    Return the JSON array with the 'new' field added, and no other changes.
-    Return only the JSON, without the backticks to format the JSON code.`
-
-  // assistants file doesn't like .adoc 
-  // const contentfile = await openai.files.create(
-  //   {
-  //     file: fs.createReadStream(`../content-repo/${file}`),
-  //     purpose: "assistants",
-  //   });
-
-  await openai.beta.threads.messages.create(thread.id, {
-    role: "user",
-    content: payload,
-    // attachments: [
-    //   {file_id: contentfile.id, tools: [{ type: "file_search" }]}
-    // ]
-  });
-
-  // Step 5: Run the assistant on that thread
-  const run = await openai.beta.threads.runs.create(thread.id, {
-    assistant_id: assistant.id,
-  });
-
-  await waitForRunCompletion(thread.id, run.id, openai);
-  const returned = await assistantReply(thread.id, openai);
-  const updated = JSON.parse(returned);
-
-  console.dir(updated)
-  console.dir(diff(collected, updated), {depth: 8})
-
-  // let's turn off the guardrail for now and let the AI spew out whatever garbage it wants! :success:
-
-  // for (const [equality, subobject] of diff(collected, updated)) {
-  //   assert.equal(equality, '~', 'AI sanity check: expect altered sub-object')
-  //   assert.deepEqual(Object.keys(subobject), ['new__added'], 'AI sanity check: only new field added')
-  // }
-
-  // Fetch all comments on the pull request
-  const comments = await octokit.request(
-    `GET /repos/${repository}/pulls/${pull_request_number}/comments`, 
+// Delete each comment
+// (we might want to https://docs.github.com/en/graphql/reference/mutations#resolvereviewthread instead, but that's GraphQL only, so for another day.)
+await Promise.all(techCommComments.map(async (comment) => {
+  await octokit.request(
+    `DELETE /repos/${repository}/pulls/comments/${comment.id}`, 
     {
-      per_page: 100, // see https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api?apiVersion=2022-11-28 for pagination TODO 
       headers: {
         'X-GitHub-Api-Version': '2022-11-28'
       }
     }
   );
+}));
 
-  // Filter comments made by 'tech-comm-team-couchbase'
-  const techCommComments = comments.data.filter(comment => comment.user.login === 'tech-comm-team-couchbase');
+await Promise.all(updated.map(async (record) => {
+  if (record.new !== record.pre) {
+    console.log(record);
+    console.log(`Line ${record.line} in file ${record.file} changed from "${record.pre}" to "${record.new}"`);
 
-  // Delete each comment
-  // (we might want to https://docs.github.com/en/graphql/reference/mutations#resolvereviewthread instead, but that's GraphQL only, so for another day.)
-  await Promise.all(techCommComments.map(async (comment) => {
-    await octokit.request(
-      `DELETE /repos/${repository}/pulls/comments/${comment.id}`, 
-      {
-        headers: {
-          'X-GitHub-Api-Version': '2022-11-28'
-        }
-      }
-    );
-  }));
+    console.log(record.file, record.line, record.new, record.rules);
 
-  await Promise.all(updated.map(async (record) => {
-    if (record.new !== record.pre) {
-      console.log(record);
-      console.log(`Line ${record.line} in file ${record.file} changed from "${record.pre}" to "${record.new}"`);
-
-      console.log(record.file, record.line, record.new, record.rules);
-
-      await postComment(record.file, record.line, record.new, record.rules);
-    }
-  }));
-}
+    await postComment(record.file, record.line, record.new, record.rules);
+  }
+}));
 
 async function postComment(file, line, newContent, rules) {
 
@@ -223,44 +158,4 @@ async function postComment(file, line, newContent, rules) {
       'X-GitHub-Api-Version': '2022-11-28'
     }
   })
-}
-
-
-async function waitForRunCompletion(threadId, runId, client) {
-  while (true) {
-    const run = await client.beta.threads.runs.retrieve(threadId, runId);
-
-    if (run.status === 'completed') {
-      break;
-    }
-
-    if (['failed', 'cancelled', 'expired'].includes(run.status)) {
-      throw new Error(`Run failed with status: ${run.status}`);
-    }
-
-    // Wait 1 second before checking again
-    await new Promise((res) => setTimeout(res, 1000));
-  }
-}
-
-async function assistantReply(threadId, client) {
-  const messages = await client.beta.threads.messages.list(threadId);
-
-  // Get the last message from the assistant
-  const assistantMessage = messages.data.find(
-    (msg) => msg.role === 'assistant'
-  );
-
-  if (!assistantMessage) {
-    console.log("No assistant reply found.");
-    return;
-  }
-
-  // Print the text content of the assistant's reply
-  const textParts = assistantMessage.content
-    .filter((part) => part.type === 'text')
-    .map((part) => part.text?.value || '')
-    .join('\n');
-
-  return textParts;
 }
