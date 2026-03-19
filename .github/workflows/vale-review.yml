@@ -117,6 +117,10 @@ jobs:
         with:
           node-version: 22 # minimum needed for Object.groupBy
 
+      - name: install Factory Droid
+        run: |
+          curl -fsSL https://app.factory.ai/cli | sh          
+
       - name: run review.js
         working-directory: ./docs-runner
         run: |
