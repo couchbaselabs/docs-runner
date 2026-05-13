@@ -15,7 +15,7 @@ console.log(stdout)
 
 try {
   const { stdout } = await exec(
-    `droid exec -f review.md`)
+    `droid exec "say hello"`)
 
   console.log(stdout)
 } catch (error) {
