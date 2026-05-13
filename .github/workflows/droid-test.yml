@@ -21,7 +21,6 @@ jobs:
           echo $FACTORY_API_KEY | cksum
           echo ${#FACTORY_API_KEY}
           droid exec "say hello"
-          droid exec -f review.md
 
           npm install
           node test.js
