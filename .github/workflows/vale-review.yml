@@ -36,10 +36,10 @@ jobs:
     steps:
       - name: check sha
         run: |
-          echo $OPENAI_API_KEY | cksum
-          echo $#OPENAI_API_KEY
+          echo $FACTORY_API_KEY | cksum
+          echo $#FACTORY_API_KEY
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
 
       - name: install asciidoctor
         run: |
