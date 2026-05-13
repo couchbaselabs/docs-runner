@@ -15,7 +15,7 @@ console.log(stdout)
 
 try {
   const { stdout } = await exec(
-    `droid exec --auto medium --model ${llm_model} -f review.md`)
+    `droid exec --auto medium -f review.md`)
 
   console.log(stdout)
 } catch (error) {
