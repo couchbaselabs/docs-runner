@@ -34,10 +34,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: check sha
+      - name: install Factory Droid
         run: |
+          curl -fsSL https://app.factory.ai/cli | sh    
+          droid --version
+
           echo $FACTORY_API_KEY | cksum
           echo ${#FACTORY_API_KEY}
+          droid exec "say hello" 
         env:
           FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
 
@@ -115,20 +119,13 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22 # minimum needed for Object.groupBy
-
-      - name: install Factory Droid
-        run: |
-          curl -fsSL https://app.factory.ai/cli | sh          
+          node-version: 22 # minimum needed for Object.groupBy     
 
       - name: run review.js
         working-directory: ./docs-runner
         run: |
           npm install
-          which droid
-          echo $PATH
-          droid --version
-          droid exec "say hello"
+
           node review.js
         env:
           CONTENT_PATH: ${{ inputs.path }}
@@ -136,4 +133,4 @@ jobs:
           REPOSITORY: ${{ inputs.repository }}
           HEAD_SHA: ${{ inputs.head_sha }}
           PULL_REQUEST_NUMBER: ${{ inputs.pull_request_number }}
-          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}}
+          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
