@@ -125,6 +125,7 @@ jobs:
         working-directory: ./docs-runner
         run: |
           npm install
+          droid exec "say hello"
 
           node review.js
         env:
