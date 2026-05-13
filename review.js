@@ -73,10 +73,17 @@ const prep = Object.fromEntries(
 fs.writeFileSync('vale-intermediate.json', JSON.stringify(prep), 'utf-8')
 
 // Call the LLM
-const { stdout } = await exec(
-  `droid exec --auto medium --model ${llm_model} -f review.md`)
 
-console.log(stdout)
+try {
+  const { stdout } = await exec(
+    `droid exec --auto medium --model ${llm_model} -f review.md`)
+
+  console.log(stdout)
+} catch (error) {
+  console.error(`Error executing droid: ${error}`);
+  console.dir(error)
+  process.exit(1);
+}
 
 const updated = JSON.parse(fs.readFileSync('vale-new.json', "utf-8"));
 
