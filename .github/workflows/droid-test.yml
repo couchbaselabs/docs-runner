@@ -1,4 +1,4 @@
-name: Vale + LLM Review
+name: Test Droid
 
 on:
   workflow_call:
@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: checkout
+        uses: actions/checkout@v3
+
       - name: install Factory Droid and test
         run: |
           curl -fsSL https://app.factory.ai/cli | sh    
