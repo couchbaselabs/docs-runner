@@ -1,0 +1,25 @@
+name: Vale + LLM Review
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+
+jobs:
+  run-vale:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: install Factory Droid and test
+        run: |
+          curl -fsSL https://app.factory.ai/cli | sh    
+          droid --version
+
+          echo $FACTORY_API_KEY | cksum
+          echo ${#FACTORY_API_KEY}
+          droid exec "say hello"
+
+          npm install
+          node test.js
+        env:
+          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
