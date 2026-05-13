@@ -8,3 +8,5 @@ const exec = promisify(cp.exec)
 
 const { stdout } = await exec(
     `droid exec "say hello"`)
+
+console.log(stdout)
