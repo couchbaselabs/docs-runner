@@ -37,7 +37,7 @@ jobs:
       - name: check sha
         run: |
           echo $FACTORY_API_KEY | cksum
-          echo $#FACTORY_API_KEY
+          echo ${#FACTORY_API_KEY}
         env:
           FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
 
@@ -127,6 +127,8 @@ jobs:
           npm install
           which droid
           echo $PATH
+          droid --version
+          droid exec "say hello"
           node review.js
         env:
           CONTENT_PATH: ${{ inputs.path }}
