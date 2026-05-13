@@ -45,10 +45,10 @@ jobs:
         run: |
           sudo apt-get install -y asciidoctor
 
-      - name: Install Vale 3.12
+      - name: Install Vale 3.14
         run: |
-          RELEASE=vale_3.12.0_Linux_64-bit.tar.gz
-          curl -LO https://github.com/errata-ai/vale/releases/download/v3.12.0/$RELEASE
+          RELEASE=vale_3.14.1_Linux_64-bit.tar.gz
+          curl -LO https://github.com/errata-ai/vale/releases/download/v3.14.1/$RELEASE
           tar -xvzf $RELEASE
           echo $PATH
           mv vale /usr/local/bin
@@ -132,5 +132,4 @@ jobs:
           REPOSITORY: ${{ inputs.repository }}
           HEAD_SHA: ${{ inputs.head_sha }}
           PULL_REQUEST_NUMBER: ${{ inputs.pull_request_number }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}}

@@ -72,6 +72,7 @@ const prep = Object.fromEntries(
 
 fs.writeFileSync('vale-intermediate.json', JSON.stringify(prep), 'utf-8')
 
+// Call the LLM
 const { stdout } = await exec(
   `droid exec --auto medium --model ${llm_model} -f review.md`)
 
