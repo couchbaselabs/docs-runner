@@ -125,6 +125,8 @@ jobs:
         working-directory: ./docs-runner
         run: |
           npm install
+          which droid
+          echo $PATH
           node review.js
         env:
           CONTENT_PATH: ${{ inputs.path }}
