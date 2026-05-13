@@ -22,6 +22,8 @@ jobs:
           echo ${#FACTORY_API_KEY}
           droid exec "say hello"
 
+          ls -ltr
+
           npm install
           node test.js
         env:
