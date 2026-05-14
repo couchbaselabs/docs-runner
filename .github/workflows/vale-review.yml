@@ -11,7 +11,6 @@ on:
         type: string
         description: "The startPath pointing to the folder to test. This is the location for any custom .vale.ini"
         required: false
-        default: "."
       pull_request_number:
         type: string
         description: "The pull request number to check out"
@@ -89,7 +88,7 @@ jobs:
         working-directory: ./content-repo
         run: |
           RUNNER_DIR=$(pwd)/../docs-runner
-          cd $CONTENT_PATH
+          cd ${CONTENT_PATH-.} # if CONTENT_PATH is not set, default to current directory
 
           CHANGED=$(git diff --name-only $BASE_SHA --relative . | xargs)
           echo $CHANGED
@@ -111,6 +110,7 @@ jobs:
       - name: run git diff
         working-directory: ./content-repo
         run: |
+          # in this case, missing CONTENT_PATH must be empty, rather than defaulting to '.'
           git diff -U0 $BASE_SHA --relative=$CONTENT_PATH > ../docs-runner/diff.txt
           cat ../docs-runner/diff.txt
         env:

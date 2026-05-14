@@ -160,7 +160,7 @@ async function postComment(file, line, newContent, rules) {
     {
     body: payload,
     commit_id: head_sha,
-    path: path.join(content_path, file),
+    path: content_path ? path.join(content_path, file) : file,
     line: parseInt(line),
     start_side: 'RIGHT',
     side: 'RIGHT',
