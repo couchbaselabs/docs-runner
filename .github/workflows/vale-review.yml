@@ -88,7 +88,10 @@ jobs:
         working-directory: ./content-repo
         run: |
           RUNNER_DIR=$(pwd)/../docs-runner
-          cd ${CONTENT_PATH-.} # if CONTENT_PATH is not set, default to current directory
+          if [ -n "$CONTENT_PATH" ]; then
+            cd $CONTENT_PATH
+          fi
+          pwd
 
           CHANGED=$(git diff --name-only $BASE_SHA --relative . | xargs)
           echo $CHANGED
