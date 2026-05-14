@@ -89,8 +89,10 @@ try {
 
 const updated = JSON.parse(fs.readFileSync('vale-new.json', "utf-8"));
 
+console.log("LLM review complete. Updated content:")
 console.dir(updated)
 
+console.log("Diff between Vale output with diff content and LLM-updated content:")
 console.dir(diff(prep, updated), {depth: 8})
 
   // TODO revise and reenable this sanity check:
@@ -141,16 +143,20 @@ await Promise.all(techCommComments.map(async (comment) => {
   );
 }));
 
-await Promise.all(updated.map(async (record) => {
-  if (record.new !== record.pre) {
-    console.log(record);
-    console.log(`Line ${record.line} in file ${record.file} changed from "${record.pre}" to "${record.new}"`);
+for (const file of Object.keys(updated)) {
+  for (const line of Object.keys(updated[file])) {
 
-    console.log(record.file, record.line, record.new, record.rules);
+    const record = updated[file][line]
+    if (record.new !== record.pre) {
+      console.log(record);
+      console.log(`Line ${record.line} in file ${record.file} changed from "${record.pre}" to "${record.new}"`);
 
-    await postComment(record.file, record.line, record.new, record.rules);
+      console.log(record.file, record.line, record.new, record.rules);
+
+      await postComment(record.file, record.line, record.new, record.rules);
+    }
   }
-}));
+}
 
 async function postComment(file, line, newContent, rules) {
 
