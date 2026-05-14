@@ -149,11 +149,9 @@ for (const file of Object.keys(updated)) {
     const record = updated[file][line]
     if (record.new !== record.pre) {
       console.log(record);
-      console.log(`Line ${record.line} in file ${record.file} changed from "${record.pre}" to "${record.new}"`);
+      console.log(`Line ${line} in file ${file} changed from "${record.pre}" to "${record.new}"`);
 
-      console.log(record.file, record.line, record.new, record.rules);
-
-      await postComment(record.file, record.line, record.new, record.rules);
+      await postComment(file, line, record.new, record.rules);
     }
   }
 }
