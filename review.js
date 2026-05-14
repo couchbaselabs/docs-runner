@@ -72,6 +72,8 @@ const prep = Object.fromEntries(
 
 fs.writeFileSync('vale-intermediate.json', JSON.stringify(prep), 'utf-8')
 
+console.log("Prepared Vale output with diff content, ready for LLM review:")
+console.dir(prep, {depth: 8})
 // Call the LLM
 
 try {
