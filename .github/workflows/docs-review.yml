@@ -1,0 +1,23 @@
+name: Documentation Review (Vale Compatible)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '**/*.adoc'
+      - '**/*.md'
+
+jobs:
+  doc-style-check:
+    uses: couchbaselabs/docs-runner/.github/workflows/doc-style-checker.yml@fi-docs-style-checker
+    with:
+      repository: ${{ github.repository }}
+      path: "."
+      pull_request_number: ${{ github.event.pull_request.number }}
+      base_sha: ${{ github.event.pull_request.base.sha }}
+      head_sha: ${{ github.event.pull_request.head.sha }}
+    secrets:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+      GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+      ACTION_TOKEN: ${{ secrets.GITHUB_TOKEN }}
